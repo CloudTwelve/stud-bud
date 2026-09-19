@@ -29,6 +29,20 @@ export interface Space {
   building: string;
   latest: Reading;
   history: Reading[];
+  /** No sweep recently, so the readings can't be trusted. */
+  stale: boolean;
+}
+
+export interface HourlyPoint {
+  /** ISO timestamp of the start of the hour */
+  hour: string;
+  temperature: number;
+  humidity: number;
+  sound: number;
+  light: number;
+  /** Fraction of seats taken, 0-1 */
+  fullness: number;
+  samples: number;
 }
 
 export interface MetricVerdict {
@@ -44,4 +58,8 @@ export interface SpaceVerdict {
   headline: string;
   summary: string;
   metrics: MetricVerdict[];
+}
+
+export interface ScoredSpace extends Space {
+  verdict: SpaceVerdict;
 }

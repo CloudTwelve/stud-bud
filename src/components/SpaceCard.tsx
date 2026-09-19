@@ -1,9 +1,6 @@
-import type { Metric, Space, SpaceVerdict } from "@/lib/types";
+import Link from "next/link";
+import type { Metric, ScoredSpace } from "@/lib/types";
 import Sparkline from "./Sparkline";
-
-export interface ScoredSpace extends Space {
-  verdict: SpaceVerdict;
-}
 
 const METRIC_ICON: Record<Metric, string> = {
   temperature: "🌡️",
@@ -39,7 +36,7 @@ function scoreTone(score: number): { label: string; bar: string; chip: string } 
   };
 }
 
-function timeAgo(iso: string): string {
+export function timeAgo(iso: string): string {
   const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
   if (!Number.isFinite(minutes)) return "unknown";
   if (minutes < 1) return "just now";
@@ -54,27 +51,44 @@ export default function SpaceCard({ space }: { space: ScoredSpace }) {
   const soundHistory = space.history.map((reading) => reading.sound);
 
   return (
-    <article className="card flex flex-col gap-5 rounded-3xl p-6 shadow-[0_18px_40px_-28px_rgba(76,29,149,0.6)] transition hover:-translate-y-1 hover:shadow-[0_28px_60px_-30px_rgba(76,29,149,0.7)]">
+    <article
+      className={`card flex flex-col gap-5 rounded-3xl p-5 shadow-[0_18px_40px_-28px_rgba(76,29,149,0.6)] transition hover:-translate-y-1 hover:shadow-[0_28px_60px_-30px_rgba(76,29,149,0.7)] sm:p-6 ${
+        space.stale ? "opacity-60 saturate-50" : ""
+      }`}
+    >
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">{space.name}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            <Link href={`/space/${space.id}`} className="hover:underline">
+              {space.name}
+            </Link>
+          </h2>
           <p className="text-sm opacity-60">
-            {space.building} · updated {timeAgo(space.latest.recordedAt)}
+            {space.building} · {space.stale ? "last seen" : "updated"}{" "}
+            {timeAgo(space.latest.recordedAt)}
           </p>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${tone.chip}`}
+          className={`rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
+            space.stale
+              ? "bg-black/10 text-current dark:bg-white/10"
+              : tone.chip
+          }`}
         >
-          {free} free
+          {space.stale ? "Stale" : `${free} free`}
         </span>
       </header>
 
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className={`text-5xl font-bold tabular-nums ${tone.label}`}>
-            {space.verdict.score}
+          <p
+            className={`text-5xl font-bold tabular-nums ${space.stale ? "opacity-40" : tone.label}`}
+          >
+            {space.stale ? "—" : space.verdict.score}
           </p>
-          <p className="text-sm font-medium">{space.verdict.headline}</p>
+          <p className="text-sm font-medium">
+            {space.stale ? "No recent sweep" : space.verdict.headline}
+          </p>
         </div>
         <div className="w-28">
           <Sparkline
@@ -92,11 +106,15 @@ export default function SpaceCard({ space }: { space: ScoredSpace }) {
       <div className="h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
         <div
           className={`h-full rounded-full bg-gradient-to-r ${tone.bar} transition-[width] duration-700`}
-          style={{ width: `${space.verdict.score}%` }}
+          style={{ width: `${space.stale ? 0 : space.verdict.score}%` }}
         />
       </div>
 
-      <p className="text-sm opacity-80">{space.verdict.summary}</p>
+      <p className="text-sm opacity-80">
+        {space.stale
+          ? `The dog hasn't swept this room since ${timeAgo(space.latest.recordedAt)} — these numbers are probably wrong.`
+          : space.verdict.summary}
+      </p>
 
       <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {space.verdict.metrics.map((metric) => (

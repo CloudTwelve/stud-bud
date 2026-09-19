@@ -12,10 +12,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description =
+  "Live temperature, humidity, noise, light and seat data from an Arduino and robot dog, turned into a study-or-not verdict.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.STUDBUD_BASE_URL ?? "http://localhost:3000"),
   title: "Stud-Bud — is this room worth studying in?",
-  description:
-    "Live temperature, humidity, noise, light and seat data from an Arduino and robot dog, turned into a study-or-not verdict.",
+  description,
+  openGraph: {
+    title: "Stud-Bud — is this room worth studying in?",
+    description,
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#a78bfa",
 };
 
 const themeScript = `(() => {

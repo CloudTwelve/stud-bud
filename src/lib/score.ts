@@ -1,4 +1,4 @@
-import type { MetricVerdict, Reading, SpaceVerdict } from "./types";
+import type { Metric, MetricVerdict, Reading, SpaceVerdict } from "./types";
 
 /**
  * Scores a value on a 0-100 scale: 100 inside [idealLow, idealHigh], falling
@@ -35,15 +35,40 @@ export function fullness(reading: Reading): number {
   return Math.min(1, reading.occupiedSeats / reading.totalSeats);
 }
 
-const WEIGHTS: Record<string, number> = {
-  temperature: 1,
-  humidity: 0.7,
-  sound: 1.4,
-  light: 1,
-  occupancy: 1.5,
-};
+export type Weights = Record<Metric, number>;
 
-export function evaluate(reading: Reading): SpaceVerdict {
+export const PRESETS: { id: string; label: string; weights: Weights }[] = [
+  {
+    id: "balanced",
+    label: "Balanced",
+    weights: { temperature: 1, humidity: 0.7, sound: 1.4, light: 1, occupancy: 1.5 },
+  },
+  {
+    id: "silence",
+    label: "I need silence",
+    weights: { temperature: 0.5, humidity: 0.3, sound: 4, light: 0.6, occupancy: 1.5 },
+  },
+  {
+    id: "seat",
+    label: "Just find me a seat",
+    weights: { temperature: 0.4, humidity: 0.3, sound: 0.8, light: 0.5, occupancy: 4 },
+  },
+  {
+    id: "comfort",
+    label: "Comfort first",
+    weights: { temperature: 2.5, humidity: 2, sound: 1, light: 2, occupancy: 1 },
+  },
+];
+
+export const DEFAULT_WEIGHTS: Weights = PRESETS[0].weights;
+
+export function evaluate(
+  reading: Reading,
+  requested: Weights = DEFAULT_WEIGHTS,
+): SpaceVerdict {
+  const weights =
+    Object.values(requested).some((weight) => weight > 0) ? requested : DEFAULT_WEIGHTS;
+
   const temperature = band(reading.temperature, 12, 19, 23.5, 32);
   const humidity = band(reading.humidity, 10, 30, 55, 85);
   const sound = band(reading.sound, -20, 0, 45, 80);
@@ -116,9 +141,9 @@ export function evaluate(reading: Reading): SpaceVerdict {
     },
   ];
 
-  const totalWeight = metrics.reduce((sum, m) => sum + WEIGHTS[m.metric], 0);
+  const totalWeight = metrics.reduce((sum, m) => sum + weights[m.metric], 0);
   const score = Math.round(
-    metrics.reduce((sum, m) => sum + m.score * WEIGHTS[m.metric], 0) / totalWeight,
+    metrics.reduce((sum, m) => sum + m.score * weights[m.metric], 0) / totalWeight,
   );
 
   const weakest = [...metrics].sort((a, b) => a.score - b.score)[0];
