@@ -21,7 +21,7 @@ function band(
 }
 
 function comment(score: number, good: string, ok: string, bad: string): string {
-  if (score >= 80) return good;
+  if (score >= 95) return good;
   if (score >= 50) return ok;
   return bad;
 }
