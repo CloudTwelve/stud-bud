@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #fdf7ff;
+  --foreground: #2c1f3d;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-border: rgba(147, 112, 219, 0.18);
+  --glow-a: #ffd6e8;
+  --glow-b: #d9ccff;
+  --glow-c: #c7f0ff;
+  --glow-d: #fff3c4;
+}
+
+.dark {
+  --background: #0d0a1a;
+  --foreground: #efe9ff;
+  --surface: rgba(28, 22, 48, 0.72);
+  --surface-border: rgba(167, 139, 250, 0.24);
+  --glow-a: #4c1d95;
+  --glow-b: #1e3a8a;
+  --glow-c: #0f766e;
+  --glow-d: #831843;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-border: var(--surface-border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  transition:
+    background-color 300ms ease,
+    color 300ms ease;
+}
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aurora span {
+  position: absolute;
+  display: block;
+  width: 46rem;
+  height: 46rem;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.55;
+  animation: drift 22s ease-in-out infinite alternate;
+}
+
+.dark .aurora span {
+  opacity: 0.4;
+}
+
+.aurora span:nth-child(1) {
+  background: var(--glow-a);
+  top: -14rem;
+  left: -10rem;
+}
+
+.aurora span:nth-child(2) {
+  background: var(--glow-b);
+  top: -6rem;
+  right: -14rem;
+  animation-delay: -6s;
+}
+
+.aurora span:nth-child(3) {
+  background: var(--glow-c);
+  bottom: -20rem;
+  left: 18%;
+  animation-delay: -12s;
+}
+
+.aurora span:nth-child(4) {
+  background: var(--glow-d);
+  bottom: -16rem;
+  right: 6%;
+  animation-delay: -3s;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3rem, -2rem, 0) scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora span {
+    animation: none;
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  backdrop-filter: blur(18px);
+}
