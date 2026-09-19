@@ -1,0 +1,34 @@
+import { NextResponse } from "next/server";
+import { evaluate } from "@/lib/score";
+import { listSpaces, recordReading } from "@/lib/store";
+import { parseIngest } from "@/lib/validate";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const spaces = listSpaces().map((space) => ({
+    ...space,
+    verdict: evaluate(space.latest),
+  }));
+  return NextResponse.json({ spaces, updatedAt: new Date().toISOString() });
+}
+
+export async function POST(request: Request) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ errors: ["body must be valid JSON"] }, { status: 400 });
+  }
+
+  const parsed = parseIngest(body);
+  if ("errors" in parsed) {
+    return NextResponse.json({ errors: parsed.errors }, { status: 400 });
+  }
+
+  const space = recordReading(parsed.payload);
+  return NextResponse.json(
+    { space: { ...space, verdict: evaluate(space.latest) } },
+    { status: 201 },
+  );
+}
