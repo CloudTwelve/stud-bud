@@ -1,10 +1,12 @@
 # Live demo: getting Stud 5 Lounge (W20) on the board
 
-`/rooms` has three tabs. **Cards** and **Map** are the idealized campus — seeded
-rooms that show what the product looks like fully deployed. The third tab,
-**Stud 5 Lounge (W20)**, is the room you are actually testing in: it is never
-seeded, so it shows an empty "waiting for the first sweep" state until your
-hardware posts, and real numbers the second it does.
+`/rooms` has three tabs. The first one, **Stud 5 Lounge (W20)**, is the room you
+are actually testing in — for this project's demo that is the fifth-floor Stud 5
+lounge of the Stratton Student Center (W20) at MIT, where the Arduino and the
+robot dog live. It is never seeded, so it shows an empty "waiting for the first
+sweep" state until your hardware posts, and real numbers the second it does.
+**Cards** and **Map** are the idealized campus — seeded rooms that show what the
+product looks like fully deployed.
 
 The room is identified everywhere by one id:
 

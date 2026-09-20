@@ -31,9 +31,10 @@ export default function DemoDataNotice({ compact = false }: { compact?: boolean 
       <p className="mt-2 opacity-80">
         The one exception is{" "}
         <strong className="font-semibold">{LIVE_SPACE.label}</strong> — its own
-        tab, and the block ringed in teal on the map: that room is a live
-        Arduino and robot dog reporting what they can actually sense. Point the
-        same hardware at any room on this page and it stops being an example.
+        tab, and the block ringed in teal on the map: for this project&apos;s
+        demo the Arduino and robot dog sit in {LIVE_SPACE.where} and report what
+        they can actually sense there. Point the same hardware at any room on
+        this page and it stops being an example.
       </p>
     </aside>
   );
