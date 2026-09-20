@@ -69,8 +69,16 @@ if (!isnan(temperature)) lastTemperature = temperature;
 ```
 
 DHT11 (the blue one) is the cheaper sibling: ±2 °C and whole-number humidity.
-The score bands here are 4.5 °C wide, so a ±2 °C sensor would decide the verdict
-by itself. Hence the DHT22.
+The score bands here are 4.5 °C wide, so a ±2 °C sensor decides the verdict
+almost by itself — the DHT22 is worth the extra dollar if you have the choice.
+
+Either part works, but `DHT_TYPE` in the sketch must name the one you have. The
+two speak the same one-wire protocol and differ only in how the 40 bits are
+packed, so the wrong setting doesn't error — it decodes the frame under the
+wrong rules and hands you a confident 307 °C at 3807 % RH. That failure mode is
+why both `python/main.py` and the ingest API refuse readings outside physical
+bounds: a sensor that lies plausibly is worse than one that stays silent, since
+a single bad sweep drags a room's score and its whole 24 h trend.
 
 ### Modulino Light — light (digital, I²C over Qwiic)
 

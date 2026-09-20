@@ -27,6 +27,13 @@ CONFIG_PATHS = [
     Path("/home/arduino/studbud.json"),
 ]
 POST_INTERVAL = 60.0  # seconds
+# Same bounds the server enforces, in the order the sketch sends them.
+RANGES = (
+    ("temperature", -20.0, 60.0),
+    ("humidity", 0.0, 100.0),
+    ("sound", 0.0, 160.0),
+    ("light", 0.0, 150000.0),
+)
 # ~10 minutes of samples: enough to ride out a short outage without the buffer
 # growing forever while the server is down.
 MAX_SAMPLES = 300
@@ -83,6 +90,12 @@ def on_sample(temperature: float, humidity: float, sound: float, light: float) -
     if any(math.isnan(value) for value in values):
         print("skipping sample with a sensor that has not reported yet")
         return
+    for value, (name, low, high) in zip(values, RANGES):
+        if not low <= value <= high:
+            # A wrong sensor type decodes into confident nonsense rather than
+            # failing, and one bad sweep skews a room's score for a day.
+            print(f"skipping sample: {name}={value} is outside {low}..{high}")
+            return
     samples.append(values)
     del samples[:-MAX_SAMPLES]
 
