@@ -97,13 +97,13 @@ type CarriedField =
   | "occupiedSeats"
   | "totalSeats";
 
-/** A room with no history has nothing to carry forward, so the first sweep
- *  for it has to be complete. */
+/** A sweep with nothing recorded before it has nothing to carry forward, so
+ *  it has to be complete. */
 export class IncompleteFirstReadingError extends Error {
   constructor(spaceId: string, fields: CarriedField[]) {
     super(
-      `the first reading for a new space (${spaceId}) must include every` +
-        ` field; missing: ${fields.join(", ")}`,
+      `nothing is recorded for ${spaceId} before this reading, so it must` +
+        ` include every field; missing: ${fields.join(", ")}`,
     );
   }
 }
@@ -121,7 +121,17 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
   await seedIfEmpty();
   const store = await backend();
 
-  const previous = (await store.history(payload.spaceId, 1))[0];
+  // Canonical UTC so stored timestamps sort and compare by instant even when
+  // a device posts an offset like `+02:00`.
+  const parsed = payload.recordedAt ? Date.parse(payload.recordedAt) : Date.now();
+  const recordedAt = new Date(
+    Number.isFinite(parsed) ? parsed : Date.now(),
+  ).toISOString();
+
+  // What was current at the sweep's own timestamp, not the room's newest row:
+  // the dog uploads an offline backlog newest-first, and a backdated sweep
+  // must not copy later measurements into earlier history.
+  const previous = await store.readingBefore(payload.spaceId, recordedAt);
   const missing: CarriedField[] = [];
   const carry = (field: CarriedField): number => {
     const value = payload[field] ?? previous?.[field];
@@ -158,7 +168,7 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
   await store.insertReading({
     spaceId: payload.spaceId,
     ...carried,
-    recordedAt: payload.recordedAt ?? new Date().toISOString(),
+    recordedAt,
   });
 
   const space = await getSpace(payload.spaceId);
