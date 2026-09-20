@@ -120,12 +120,31 @@ export function layoutCampus(spaces: ScoredSpace[]): BuildingPlot[] {
     placed.set(name, free[index] ?? overflowPlot(index - free.length));
   });
 
-  return [...byBuilding.entries()]
+  const packed = [...byBuilding.entries()]
     .map(([name, group]) => {
-      const { box, rooms } = packRooms(placed.get(name) as Box, group);
-      return { name, ...box, rooms };
+      const plot = placed.get(name) as Box;
+      const { box, rooms } = packRooms(plot, group);
+      return { name, ...box, rooms, row: plot.y, grew: box.h - plot.h };
     })
-    .sort((a, b) => a.y - b.y || a.x - b.x);
+    .sort((a, b) => a.row - b.row || a.x - b.x);
+
+  // A plot that grew would run into the row beneath it, so push every later
+  // row down by the tallest growth above it.
+  let shift = 0;
+  let row = packed[0]?.row;
+  let rowGrowth = 0;
+  for (const plot of packed) {
+    if (plot.row !== row) {
+      row = plot.row;
+      shift += rowGrowth;
+      rowGrowth = 0;
+    }
+    rowGrowth = Math.max(rowGrowth, plot.grew);
+    plot.y += shift;
+    for (const room of plot.rooms) room.y += shift;
+  }
+
+  return packed.map(({ name, x, y, w, h, rooms }) => ({ name, x, y, w, h, rooms }));
 }
 
 /** Teal at 100, orange at 0 — the same ramp the score numbers walk. */
