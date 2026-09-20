@@ -103,12 +103,15 @@ curl -X POST http://localhost:3000/api/readings \
 | `recordedAt` | ISO 8601, defaults to now | no |
 
 Every measurement is optional (send at least one): whatever a sweep omits is
-carried forward from the room's last reading. That is what lets two machines
-report on the same room without stepping on each other — an Arduino that knows
-nothing about seats posts its four sensors, a robot dog that knows nothing
-about temperature posts its seat counts, and neither wipes the other's numbers.
-A room the server has never seen has nothing to carry forward, so the sweep
-that creates it must carry all six.
+carried forward from the last reading recorded *before it*. That is what lets
+two machines report on the same room without stepping on each other — an
+Arduino that knows nothing about seats posts its four sensors, a robot dog that
+knows nothing about temperature posts its seat counts, and neither wipes the
+other's numbers. Carrying forward from the reading current at `recordedAt`
+rather than the newest one keeps backdated sweeps honest: the dog uploads a
+queued patrol newest-first once it is back online, and those older sweeps must
+not inherit measurements taken after them. A sweep with nothing recorded before
+it has nothing to carry forward, so it must carry all six.
 
 A carried value keeps the age it was measured at, not the age of the sweep it
 rides in. If one sensor dies while the others keep posting, that metric alone

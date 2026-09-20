@@ -21,6 +21,12 @@ export interface Backend {
   insertSpace(row: SpaceRow): Promise<void>;
   renameSpace(id: string, name?: string, building?: string): Promise<void>;
   history(id: string, limit: number): Promise<Reading[]>;
+  /**
+   * Newest reading at or before `recordedAt`, or undefined when nothing
+   * precedes it. Timestamps are stored as canonical UTC, so comparing the
+   * stored text compares instants.
+   */
+  readingBefore(id: string, recordedAt: string): Promise<Reading | undefined>;
   hourly(id: string, hours: number): Promise<HourlyPoint[]>;
   insertReading(reading: Reading): Promise<void>;
   insertReadings(readings: Reading[]): Promise<void>;
@@ -108,6 +114,18 @@ const POSTGRES_SCHEMA = `
   );
 `;
 
+/**
+ * Timestamps are stored as canonical UTC so that comparing the stored text
+ * compares instants; anything else predates that rule.
+ */
+const LEGACY_TIMESTAMP =
+  "recorded_at NOT LIKE '%Z' OR length(recorded_at) <> 24";
+
+function canonicalTimestamp(value: string): string | null {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+
 interface ReadingRow {
   space_id: string;
   temperature: number;
@@ -181,6 +199,20 @@ function sqliteBackend(): Backend | null {
       }
     }
 
+    // Rows written before timestamps were canonicalised may carry an offset,
+    // and `recorded_at` is compared as text.
+    for (const row of db
+      .prepare(`SELECT id, recorded_at FROM readings WHERE ${LEGACY_TIMESTAMP}`)
+      .all() as unknown as { id: number; recorded_at: string }[]) {
+      const canonical = canonicalTimestamp(row.recorded_at);
+      if (canonical) {
+        db.prepare("UPDATE readings SET recorded_at = ? WHERE id = ?").run(
+          canonical,
+          row.id,
+        );
+      }
+    }
+
     const insert = (reading: Reading) =>
       void db
         .prepare(
@@ -243,6 +275,15 @@ function sqliteBackend(): Backend | null {
         )
           .map(toReading)
           .reverse(),
+      readingBefore: async (id, recordedAt) => {
+        const row = db
+          .prepare(
+            `SELECT * FROM readings WHERE space_id = ? AND recorded_at <= ?
+             ORDER BY recorded_at DESC, id DESC LIMIT 1`,
+          )
+          .get(id, recordedAt) as unknown as ReadingRow | undefined;
+        return row ? toReading(row) : undefined;
+      },
       hourly: async (id, hours) => {
         const since = new Date(
           Date.now() - hours * 60 * 60 * 1000,
@@ -332,6 +373,20 @@ async function postgresBackend(url: string): Promise<Backend | null> {
       values: unknown[] = [],
     ) => (await pool.query<T>(text, values)).rows;
 
+    // Rows written before timestamps were canonicalised may carry an offset,
+    // and `recorded_at` is compared as text.
+    for (const row of await query<{ id: string; recorded_at: string }>(
+      `SELECT id, recorded_at FROM readings WHERE ${LEGACY_TIMESTAMP}`,
+    )) {
+      const canonical = canonicalTimestamp(row.recorded_at);
+      if (canonical) {
+        await query("UPDATE readings SET recorded_at = $1 WHERE id = $2", [
+          canonical,
+          row.id,
+        ]);
+      }
+    }
+
     const isEmpty = async () =>
       (
         await query<{ count: string }>("SELECT COUNT(*) AS count FROM spaces")
@@ -390,6 +445,14 @@ async function postgresBackend(url: string): Promise<Backend | null> {
         )
           .map(toReading)
           .reverse(),
+      readingBefore: async (id, recordedAt) => {
+        const rows = await query<ReadingRow>(
+          `SELECT * FROM readings WHERE space_id = $1 AND recorded_at <= $2
+           ORDER BY recorded_at DESC, id DESC LIMIT 1`,
+          [id, recordedAt],
+        );
+        return rows[0] ? toReading(rows[0]) : undefined;
+      },
       hourly: async (id, hours) => {
         const since = new Date(
           Date.now() - hours * 60 * 60 * 1000,
@@ -552,6 +615,10 @@ function memoryBackend(): Backend {
       });
     },
     history: async (id, limit) => (readings.get(id) ?? []).slice(-limit),
+    readingBefore: async (id, recordedAt) =>
+      (readings.get(id) ?? [])
+        .filter((reading) => reading.recordedAt <= recordedAt)
+        .pop(),
     hourly: async (id, hours) => {
       const since = Date.now() - hours * 60 * 60 * 1000;
       const buckets = new Map<string, Reading[]>();
