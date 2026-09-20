@@ -125,14 +125,26 @@ export default function HeroGrid() {
       if (ripples.length > 6) ripples.shift();
     };
 
+    // requestAnimationFrame keeps firing for a canvas scrolled out of view, so
+    // the loop only runs while the hero is actually on screen.
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        if (!frame) frame = window.requestAnimationFrame(draw);
+      } else if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    });
+
     resize();
-    frame = window.requestAnimationFrame(draw);
+    observer.observe(canvas);
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerdown", onPointerDown);
 
     return () => {
-      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerdown", onPointerDown);
@@ -143,7 +155,7 @@ export default function HeroGrid() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="absolute inset-0 h-full w-full touch-none"
+      className="absolute inset-0 h-full w-full touch-pan-y"
     />
   );
 }
