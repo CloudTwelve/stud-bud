@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { backend } from "./backend";
 
 interface SpaceSeed {
   id: string;
@@ -72,24 +72,12 @@ function dailyCurve(hour: number): number {
 }
 
 export function seedIfEmpty(): void {
-  const database = db();
-  const { count } = database.prepare("SELECT COUNT(*) AS count FROM spaces").get() as {
-    count: number;
-  };
-  if (count > 0) return;
-
-  const insertSpace = database.prepare(
-    "INSERT INTO spaces (id, name, building) VALUES (?, ?, ?)",
-  );
-  const insertReading = database.prepare(`
-    INSERT INTO readings
-      (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  const store = backend();
+  if (!store.isEmpty()) return;
 
   const now = Date.now();
   for (const seed of SEEDS) {
-    insertSpace.run(seed.id, seed.name, seed.building);
+    store.insertSpace({ id: seed.id, name: seed.name, building: seed.building });
 
     // 24 hours of sweeps, every 20 minutes.
     for (let step = 24 * 3; step >= 0; step -= 1) {
@@ -97,22 +85,22 @@ export function seedIfEmpty(): void {
       const busy = dailyCurve(at.getHours() + at.getMinutes() / 60);
       const noise = (spread: number) => (Math.random() - 0.5) * spread;
 
-      insertReading.run(
-        seed.id,
-        Number((seed.temperature + busy * 1.8 + noise(0.6)).toFixed(1)),
-        Number((seed.humidity + busy * 6 + noise(3)).toFixed(1)),
-        Number((seed.sound - 8 + busy * 18 + noise(4)).toFixed(1)),
-        Math.round(seed.light + busy * 120 + noise(60)),
-        Math.max(
+      store.insertReading({
+        spaceId: seed.id,
+        temperature: Number((seed.temperature + busy * 1.8 + noise(0.6)).toFixed(1)),
+        humidity: Number((seed.humidity + busy * 6 + noise(3)).toFixed(1)),
+        sound: Number((seed.sound - 8 + busy * 18 + noise(4)).toFixed(1)),
+        light: Math.round(seed.light + busy * 120 + noise(60)),
+        occupiedSeats: Math.max(
           0,
           Math.min(
             seed.totalSeats,
             Math.round(seed.totalSeats * seed.peakFill * busy + noise(3)),
           ),
         ),
-        seed.totalSeats,
-        at.toISOString(),
-      );
+        totalSeats: seed.totalSeats,
+        recordedAt: at.toISOString(),
+      });
     }
   }
 }

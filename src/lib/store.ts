@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { backend } from "./backend";
 import { READING_RECORDED, readingEvents } from "./events";
 import { seedIfEmpty } from "./seed";
 import type { HourlyPoint, Reading, Space } from "./types";
@@ -6,47 +6,13 @@ import type { HourlyPoint, Reading, Space } from "./types";
 const HISTORY_POINTS = 48;
 export const STALE_AFTER_MINUTES = 45;
 
-interface ReadingRow {
-  space_id: string;
-  temperature: number;
-  humidity: number;
-  sound: number;
-  light: number;
-  occupied_seats: number;
-  total_seats: number;
-  recorded_at: string;
-}
-
-function toReading(row: ReadingRow): Reading {
-  return {
-    spaceId: row.space_id,
-    temperature: row.temperature,
-    humidity: row.humidity,
-    sound: row.sound,
-    light: row.light,
-    occupiedSeats: row.occupied_seats,
-    totalSeats: row.total_seats,
-    recordedAt: row.recorded_at,
-  };
-}
-
 export function isStale(reading: Reading): boolean {
   const age = Date.now() - Date.parse(reading.recordedAt);
   return !Number.isFinite(age) || age > STALE_AFTER_MINUTES * 60 * 1000;
 }
 
-function historyFor(spaceId: string): Reading[] {
-  const rows = db()
-    .prepare(
-      `SELECT * FROM readings WHERE space_id = ?
-       ORDER BY recorded_at DESC LIMIT ?`,
-    )
-    .all(spaceId, HISTORY_POINTS) as unknown as ReadingRow[];
-  return rows.map(toReading).reverse();
-}
-
 function assemble(row: { id: string; name: string; building: string }): Space | null {
-  const history = historyFor(row.id);
+  const history = backend().history(row.id, HISTORY_POINTS);
   if (history.length === 0) return null;
   const latest = history[history.length - 1];
   return {
@@ -61,50 +27,30 @@ function assemble(row: { id: string; name: string; building: string }): Space | 
 
 export function listSpaces(): Space[] {
   seedIfEmpty();
-  const rows = db()
-    .prepare("SELECT id, name, building FROM spaces ORDER BY name")
-    .all() as unknown as { id: string; name: string; building: string }[];
-  return rows
+  return backend()
+    .listSpaces()
     .map(assemble)
     .filter((space): space is Space => space !== null);
 }
 
 export function getSpace(id: string): Space | undefined {
   seedIfEmpty();
-  const row = db()
-    .prepare("SELECT id, name, building FROM spaces WHERE id = ?")
-    .get(id) as { id: string; name: string; building: string } | undefined;
+  const row = backend().getSpace(id);
   return row ? (assemble(row) ?? undefined) : undefined;
 }
 
 export function hourlyHistory(id: string, hours = 24): HourlyPoint[] {
-  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-  const rows = db()
-    .prepare(
-      `SELECT
-         substr(recorded_at, 1, 13) AS hour,
-         AVG(temperature) AS temperature,
-         AVG(humidity) AS humidity,
-         AVG(sound) AS sound,
-         AVG(light) AS light,
-         AVG(CAST(occupied_seats AS REAL) / MAX(total_seats, 1)) AS fullness,
-         COUNT(*) AS samples
-       FROM readings
-       WHERE space_id = ? AND recorded_at >= ?
-       GROUP BY hour
-       ORDER BY hour`,
-    )
-    .all(id, since) as unknown as (Omit<HourlyPoint, "hour"> & { hour: string })[];
-
-  return rows.map((row) => ({
-    hour: `${row.hour}:00:00.000Z`,
-    temperature: Number(row.temperature.toFixed(1)),
-    humidity: Number(row.humidity.toFixed(1)),
-    sound: Number(row.sound.toFixed(1)),
-    light: Math.round(row.light),
-    fullness: Number(row.fullness.toFixed(3)),
-    samples: row.samples,
-  }));
+  return backend()
+    .hourly(id, hours)
+    .map((point) => ({
+      hour: point.hour,
+      temperature: Number(point.temperature.toFixed(1)),
+      humidity: Number(point.humidity.toFixed(1)),
+      sound: Number(point.sound.toFixed(1)),
+      light: Math.round(point.light),
+      fullness: Number(point.fullness.toFixed(3)),
+      samples: point.samples,
+    }));
 }
 
 /** The hour of day (local) with the lowest noise + fullness across the window. */
@@ -131,42 +77,27 @@ export interface IngestPayload {
 
 export function recordReading(payload: IngestPayload): Space {
   seedIfEmpty();
-  const recordedAt = payload.recordedAt ?? new Date().toISOString();
+  const store = backend();
 
-  db()
-    .prepare("INSERT OR IGNORE INTO spaces (id, name, building) VALUES (?, ?, ?)")
-    .run(
-      payload.spaceId,
-      payload.name ?? payload.spaceId,
-      payload.building ?? "Unknown building",
-    );
-
+  store.insertSpace({
+    id: payload.spaceId,
+    name: payload.name ?? payload.spaceId,
+    building: payload.building ?? "Unknown building",
+  });
   if (payload.name || payload.building) {
-    db()
-      .prepare(
-        `UPDATE spaces
-         SET name = COALESCE(?, name), building = COALESCE(?, building)
-         WHERE id = ?`,
-      )
-      .run(payload.name ?? null, payload.building ?? null, payload.spaceId);
+    store.renameSpace(payload.spaceId, payload.name, payload.building);
   }
 
-  db()
-    .prepare(
-      `INSERT INTO readings
-         (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      payload.spaceId,
-      payload.temperature,
-      payload.humidity,
-      payload.sound,
-      payload.light,
-      payload.occupiedSeats,
-      payload.totalSeats,
-      recordedAt,
-    );
+  store.insertReading({
+    spaceId: payload.spaceId,
+    temperature: payload.temperature,
+    humidity: payload.humidity,
+    sound: payload.sound,
+    light: payload.light,
+    occupiedSeats: payload.occupiedSeats,
+    totalSeats: payload.totalSeats,
+    recordedAt: payload.recordedAt ?? new Date().toISOString(),
+  });
 
   const space = getSpace(payload.spaceId);
   if (!space) throw new Error(`space ${payload.spaceId} vanished after insert`);

@@ -17,6 +17,7 @@ Other scripts: `npm run build`, `npm start`, `npm run lint`.
 | --- | --- |
 | `STUDBUD_INGEST_TOKEN` | When set, `POST /api/readings` requires `Authorization: Bearer <token>`. Unset means open ingest (local development only). |
 | `STUDBUD_DB` | SQLite file path. Defaults to `.data/studbud.db`. |
+| `STUDBUD_MEMORY_STORE` | Set to `1` to skip SQLite and keep readings in memory. |
 | `STUDBUD_BASE_URL` | Public URL used for Open Graph / share metadata. |
 
 ## How the score works
@@ -83,3 +84,13 @@ Readings are stored in SQLite (`.data/studbud.db` by default, created and
 seeded with demo rooms on first boot), so history survives restarts. The
 dashboard updates the instant a sweep lands via `/api/stream`, with a 30 s poll
 as a fallback.
+
+## Deploying
+
+SQLite needs Node 22.5+ (for `node:sqlite`) and a writable disk. On hosts
+without one — Vercel and most serverless platforms mount a read-only
+filesystem — the app logs a warning and falls back to an in-process store: the
+dashboard, scoring, trends and ingest all work, but each instance starts from
+the seeded demo data and history is lost when the instance recycles. Run it on
+a machine with a disk (a Raspberry Pi, a VM, `npm run start` on a laptop) for
+real persistence, or point the app at a hosted database.
