@@ -28,11 +28,13 @@ def load_config() -> dict:
     config = {
         "url": "http://192.168.1.42:3000/api/readings",
         "token": "",
-        "spaceId": "hayden-reading-room",
-        "name": "Hayden Reading Room",
-        "building": "Building 14",
+        "spaceId": "stud-5-lounge",
+        "name": "Stud 5 Lounge",
+        "building": "W20",
         # Leave seats out entirely when this node does not count people: the
         # dashboard keeps whatever the robot dog last reported for the room.
+        # A room the server has never seen is the exception - it has nothing to
+        # keep, so one client has to report seats before the rest can omit them.
         "totalSeats": None,
         "occupiedSeats": None,
     }
@@ -76,6 +78,12 @@ def post(payload: dict) -> bool:
         return False
     if response.status_code >= 400:
         print(f"post {response.status_code}: {response.text[:200]}")
+        if response.status_code == 400 and "are required for new space" in response.text:
+            print(
+                f"  -> {CONFIG['spaceId']} does not exist on the server yet, and this"
+                " node does not count seats. Have the robot dog post once, or add"
+                ' "occupiedSeats" and "totalSeats" to studbud.json.'
+            )
         return False
     print(f"post {response.status_code} {payload['spaceId']}")
     return True

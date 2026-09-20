@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { LIVE_SPACE } from "@/lib/live";
 import { useReorderAnimation } from "@/lib/motion";
 import {
   getServerWeights,
@@ -19,8 +20,16 @@ import {
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
 import CampusMap from "./CampusMap";
-import { ArrowIcon, BookIcon, DogIcon, GridIcon, MapIcon, SignalIcon } from "./Icons";
+import {
+  ArrowIcon,
+  BookIcon,
+  DogIcon,
+  GridIcon,
+  MapIcon,
+  SignalIcon,
+} from "./Icons";
 import LiteToggle from "./LiteToggle";
+import LiveRoom from "./LiveRoom";
 import Logo from "./Logo";
 import Preferences from "./Preferences";
 import Quip from "./Quip";
@@ -28,6 +37,13 @@ import SpaceCard from "./SpaceCard";
 import ThemeToggle from "./ThemeToggle";
 
 type SortKey = "score" | "personalized" | "quiet" | "free";
+type ViewKey = "cards" | "map" | "live";
+
+const VIEWS: { key: ViewKey; label: string; Icon: typeof GridIcon }[] = [
+  { key: "cards", label: "Cards", Icon: GridIcon },
+  { key: "map", label: "Map", Icon: MapIcon },
+  { key: "live", label: LIVE_SPACE.label, Icon: DogIcon },
+];
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "score", label: "Best overall" },
@@ -45,7 +61,7 @@ interface DashboardProps {
 export default function Dashboard({ initialSpaces }: DashboardProps) {
   const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
   const [sort, setSort] = useState<SortKey>("score");
-  const [mapView, setMapView] = useState(false);
+  const [view, setView] = useState<ViewKey>("cards");
   const [showPrefs, setShowPrefs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
@@ -90,8 +106,16 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
     [spaces, weights],
   );
 
+  // The hardware room lives on its own tab: mixing it into the campus we
+  // demo would put one real room in a list of idealized ones.
+  const liveSpace = scored.find((space) => space.id === LIVE_SPACE.id) ?? null;
+  const campus = useMemo(
+    () => scored.filter((space) => space.id !== LIVE_SPACE.id),
+    [scored],
+  );
+
   const sorted = useMemo(() => {
-    const copy = [...scored];
+    const copy = [...campus];
     const rank = (space: ScoredSpace) => (space.stale ? -1 : 1);
     if (sort === "quiet") {
       copy.sort((a, b) => rank(b) - rank(a) || a.latest.sound - b.latest.sound);
@@ -107,7 +131,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
       copy.sort((a, b) => rank(b) - rank(a) || b.verdict.score - a.verdict.score);
     }
     return copy;
-  }, [scored, sort]);
+  }, [campus, sort]);
 
   const best = sorted.find((space) => !space.stale) ?? null;
   const cardRef = useReorderAnimation(sorted.map((space) => space.id));
@@ -166,7 +190,8 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            {SORTS.map((option) => (
+            {view !== "live" &&
+              SORTS.map((option) => (
               <button
                 key={option.key}
                 type="button"
@@ -181,22 +206,19 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                     : "panel-sm hover:-translate-y-0.5 hover:border-line-strong"
                 }`}
               >
-                {option.label}
-              </button>
-            ))}
+                  {option.label}
+                </button>
+              ))}
             <div className="ml-auto flex items-center gap-2">
               <div className="panel-sm clip-tag flex items-center">
-                {[
-                  { map: false, label: "Cards", Icon: GridIcon },
-                  { map: true, label: "Map", Icon: MapIcon },
-                ].map((option) => (
+                {VIEWS.map((option) => (
                   <button
-                    key={option.label}
+                    key={option.key}
                     type="button"
-                    onClick={() => setMapView(option.map)}
-                    aria-pressed={mapView === option.map}
+                    onClick={() => setView(option.key)}
+                    aria-pressed={view === option.key}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition ${
-                      mapView === option.map ? "on-accent" : "opacity-70 hover:opacity-100"
+                      view === option.key ? "on-accent" : "opacity-70 hover:opacity-100"
                     }`}
                   >
                     <option.Icon className="h-3.5 w-3.5" />
@@ -255,7 +277,9 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         </div>
       </header>
 
-      {mapView ? (
+      {view === "live" ? (
+        <LiveRoom space={liveSpace} />
+      ) : view === "map" ? (
         <CampusMap spaces={sorted} />
       ) : (
         <section className="grid gap-5 md:grid-cols-2 md:gap-6">
