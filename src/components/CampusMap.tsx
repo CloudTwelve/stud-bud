@@ -17,6 +17,14 @@ interface View {
 
 const MIN_WIDTH = 40;
 const ZOOM_STEP = 1.4;
+/** Pointer wander, in px, still counted as a click rather than a pan. */
+const DRAG_SLOP = 4;
+
+/** The room a gesture started on, if any. */
+function roomAt(target: EventTarget | null): string | null {
+  if (!(target instanceof Element)) return null;
+  return target.closest<SVGGElement>("[data-space]")?.dataset.space ?? null;
+}
 
 function clampView(view: View, bounds: View): View {
   const w = Math.min(Math.max(view.w, MIN_WIDTH), bounds.w);
@@ -46,12 +54,17 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
   const current = view ?? bounds;
   const [activeId, setActiveId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const drag = useRef<{ x: number; y: number; view: View } | null>(null);
+  const drag = useRef<{
+    x: number;
+    y: number;
+    view: View;
+    room: string | null;
+    moved: boolean;
+  } | null>(null);
 
-  const active =
-    spaces.find((space) => space.id === activeId) ??
-    [...spaces].sort((a, b) => b.verdict.score - a.verdict.score)[0] ??
-    null;
+  // spaces arrives in the dashboard's chosen order, so the first one is the
+  // answer to whatever the reader is currently sorting by.
+  const active = spaces.find((space) => space.id === activeId) ?? spaces[0] ?? null;
 
   const zoom = useCallback(
     (factor: number) => {
@@ -74,7 +87,15 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
 
   const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
-    drag.current = { x: event.clientX, y: event.clientY, view: current };
+    drag.current = {
+      x: event.clientX,
+      y: event.clientY,
+      view: current,
+      // Pointer capture retargets the click to the <svg>, so remember which
+      // room the gesture started on and open it ourselves on release.
+      room: roomAt(event.target),
+      moved: false,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -83,6 +104,9 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!start || !rect) return;
     const scale = start.view.w / rect.width;
+    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > DRAG_SLOP) {
+      start.moved = true;
+    }
     setView(
       clampView(
         {
@@ -96,9 +120,13 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
   };
 
   const endDrag = (event: React.PointerEvent<SVGSVGElement>) => {
+    const start = drag.current;
     drag.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (event.type === "pointerup" && start && !start.moved && start.room) {
+      router.push(`/space/${start.room}`);
     }
   };
 
@@ -189,9 +217,9 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
                       space.stale ? "unknown" : Math.round(space.verdict.score)
                     }`}
                     className={`cursor-pointer outline-none ${still ? "" : "transition-opacity"}`}
+                    data-space={space.id}
                     onPointerEnter={() => setActiveId(space.id)}
                     onFocus={() => setActiveId(space.id)}
-                    onClick={() => router.push(`/space/${space.id}`)}
                     onKeyDown={(event) => {
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
