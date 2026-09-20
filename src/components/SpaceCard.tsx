@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useAnimatedNumber } from "@/lib/motion";
+import { useAnimatedNumber, useStill } from "@/lib/motion";
 import type { ScoredSpace } from "@/lib/types";
 import { METRIC_ICON } from "./Icons";
 import Sparkline from "./Sparkline";
@@ -45,22 +45,30 @@ export function timeAgo(iso: string): string {
 }
 
 /**
- * Alternates between two classes running the same keyframes, because a second
- * sweep arriving mid-flash would leave the class untouched and CSS would not
- * restart the animation. Swapping the class name always restarts it.
+ * Alternates between two animations for about a second after this room reports
+ * a sweep it hadn't before. Alternating matters because a second sweep landing
+ * mid-flash would otherwise leave the animation untouched and CSS would not
+ * restart it; dropping the class afterwards matters because an animation left
+ * suppressed by reduced motion would play on old data the moment motion
+ * came back.
  */
 function useLandedClass(recordedAt: string): string {
-  const [sweeps, setSweeps] = useState(0);
+  const [flash, setFlash] = useState(0);
+  const sweeps = useRef(0);
   const previous = useRef(recordedAt);
+  const still = useStill();
 
   useEffect(() => {
     if (previous.current === recordedAt) return;
     previous.current = recordedAt;
-    setSweeps((count) => count + 1);
+    sweeps.current += 1;
+    setFlash(sweeps.current);
+    const timer = setTimeout(() => setFlash(0), 1200);
+    return () => clearTimeout(timer);
   }, [recordedAt]);
 
-  if (sweeps === 0) return "";
-  return sweeps % 2 === 0 ? "landed-a" : "landed-b";
+  if (still || flash === 0) return "";
+  return flash % 2 === 0 ? "landed-a" : "landed-b";
 }
 
 export default function SpaceCard({
