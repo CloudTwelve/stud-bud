@@ -14,10 +14,15 @@ interface Ripple {
   born: number;
 }
 
+const TEAL_HUE = 174;
+const ORANGE_HUE = 24;
+
 /**
  * Canvas grid that behaves like a room full of sensors: cells breathe on their
  * own, brighten near the pointer, and a click sends a sweep outwards the way
- * the robot dog's patrol lights up rooms one after another.
+ * the robot dog's patrol lights up rooms one after another. Cells are squares
+ * on a ruled grid — a floor plan, not a starfield — and warm from teal to
+ * orange as they pick up energy.
  */
 export default function HeroGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,6 +56,20 @@ export default function HeroGrid() {
 
       const cols = Math.ceil(width / CELL) + 1;
       const rows = Math.ceil(height / CELL) + 1;
+
+      // Ruled lines every fourth cell: the grid the squares are pinned to.
+      ctx.strokeStyle = dark ? "rgba(94,234,212,0.07)" : "rgba(13,148,136,0.08)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let col = 0; col < cols; col += 4) {
+        ctx.moveTo(col * CELL + 0.5, 0);
+        ctx.lineTo(col * CELL + 0.5, height);
+      }
+      for (let row = 0; row < rows; row += 4) {
+        ctx.moveTo(0, row * CELL + 0.5);
+        ctx.lineTo(width, row * CELL + 0.5);
+      }
+      ctx.stroke();
 
       for (let i = 0; i < ripples.length; i += 1) {
         if (time - ripples[i].born > RIPPLE_LIFE) ripples.splice(i, 1);
@@ -86,17 +105,16 @@ export default function HeroGrid() {
 
           energy = Math.min(energy, 1.35);
 
-          // Hue sweeps pink → violet → sky across the grid, like the score bar.
-          const hue = 320 - ((x / Math.max(width, 1)) * 130 + energy * 30);
-          const size = 1.8 + energy * 4.6;
-          const alpha = dark ? 0.2 + energy * 0.7 : 0.28 + energy * 0.6;
+          // Resting cells are teal; energy pulls them towards the orange accent.
+          const warmth = Math.min(1, energy / 1.1);
+          const hue = TEAL_HUE + (ORANGE_HUE - TEAL_HUE) * warmth;
+          const size = 2 + energy * 5;
+          const alpha = dark ? 0.18 + energy * 0.7 : 0.22 + energy * 0.62;
 
-          ctx.fillStyle = `hsla(${hue}, ${dark ? 88 : 78}%, ${
-            dark ? 60 + energy * 20 : 62 - energy * 22
+          ctx.fillStyle = `hsla(${hue}, ${dark ? 80 : 72}%, ${
+            dark ? 55 + energy * 15 : 46 - energy * 4
           }%, ${alpha})`;
-          ctx.beginPath();
-          ctx.arc(x, y, size, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.fillRect(x - size / 2, y - size / 2, size, size);
         }
       }
 

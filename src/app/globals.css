@@ -3,33 +3,52 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #fdf7ff;
-  --foreground: #2c1f3d;
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-border: rgba(147, 112, 219, 0.18);
-  --glow-a: #ffd6e8;
-  --glow-b: #d9ccff;
-  --glow-c: #c7f0ff;
-  --glow-d: #fff3c4;
+  --background: #f2f6f6;
+  --foreground: #06231f;
+  --surface: #ffffff;
+  --surface-muted: rgba(13, 148, 136, 0.07);
+  --line: rgba(13, 148, 136, 0.26);
+  --line-strong: rgba(13, 148, 136, 0.5);
+  --brand: #0d9488;
+  --brand-soft: #5eead4;
+  --accent: #ea580c;
+  --accent-soft: #fdba74;
+  --grid-line: rgba(13, 148, 136, 0.12);
+  --grid-glow-a: rgba(45, 212, 191, 0.3);
+  --grid-glow-b: rgba(249, 115, 22, 0.2);
+  --code-bg: #04211f;
 }
 
 .dark {
-  --background: #0d0a1a;
-  --foreground: #efe9ff;
-  --surface: rgba(28, 22, 48, 0.72);
-  --surface-border: rgba(167, 139, 250, 0.24);
-  --glow-a: #4c1d95;
-  --glow-b: #1e3a8a;
-  --glow-c: #0f766e;
-  --glow-d: #831843;
+  --background: #04191b;
+  --foreground: #dff3ef;
+  --surface: #072528;
+  --surface-muted: rgba(94, 234, 212, 0.07);
+  --line: rgba(94, 234, 212, 0.22);
+  --line-strong: rgba(94, 234, 212, 0.45);
+  --brand: #2dd4bf;
+  --brand-soft: #0d9488;
+  --accent: #fb923c;
+  --accent-soft: #c2410c;
+  --grid-line: rgba(94, 234, 212, 0.1);
+  --grid-glow-a: rgba(13, 148, 136, 0.28);
+  --grid-glow-b: rgba(234, 88, 12, 0.22);
+  --code-bg: #02100f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
-  --color-surface-border: var(--surface-border);
+  --color-surface-muted: var(--surface-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-space-grotesk);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -42,73 +61,149 @@ body {
     color 300ms ease;
 }
 
-.aurora {
+h1,
+h2,
+h3 {
+  font-family: var(--font-space-grotesk), var(--font-geist-sans), sans-serif;
+}
+
+/* The page sits on graph paper: a floor plan of a study space seen from above. */
+.blueprint {
   position: fixed;
   inset: 0;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 100%);
 }
 
-.aurora span {
+.blueprint::before,
+.blueprint::after {
+  content: "";
   position: absolute;
-  display: block;
-  width: 46rem;
-  height: 46rem;
-  border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.55;
-  animation: drift 22s ease-in-out infinite alternate;
+  width: 42rem;
+  height: 42rem;
+  filter: blur(120px);
 }
 
-.dark .aurora span {
-  opacity: 0.4;
+.blueprint::before {
+  background: var(--grid-glow-a);
+  top: -18rem;
+  left: -12rem;
 }
 
-.aurora span:nth-child(1) {
-  background: var(--glow-a);
-  top: -14rem;
-  left: -10rem;
+.blueprint::after {
+  background: var(--grid-glow-b);
+  top: -10rem;
+  right: -16rem;
 }
 
-.aurora span:nth-child(2) {
-  background: var(--glow-b);
-  top: -6rem;
-  right: -14rem;
-  animation-delay: -6s;
+/* A slow sweep across the grid, the way the dog walks a room. */
+.blueprint span {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 42%,
+    var(--grid-glow-a) 50%,
+    transparent 58%
+  );
+  opacity: 0.35;
+  animation: sweep 14s linear infinite;
 }
 
-.aurora span:nth-child(3) {
-  background: var(--glow-c);
-  bottom: -20rem;
-  left: 18%;
-  animation-delay: -12s;
-}
-
-.aurora span:nth-child(4) {
-  background: var(--glow-d);
-  bottom: -16rem;
-  right: 6%;
-  animation-delay: -3s;
-}
-
-@keyframes drift {
+@keyframes sweep {
   from {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(-60%, 0, 0);
   }
   to {
-    transform: translate3d(3rem, -2rem, 0) scale(1.15);
+    transform: translate3d(60%, 0, 0);
+  }
+}
+
+/* Angular panels: a clipped corner instead of a radius, so nothing is round. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  clip-path: polygon(
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
+  );
+}
+
+.panel-sm {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+}
+
+.clip-tag {
+  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+}
+
+.clip-btn {
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
+}
+
+/* Section markers: a short accent rule above a heading. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 1.75rem;
+  height: 2px;
+  background: var(--accent);
+}
+
+.rise {
+  animation: rise 500ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora span {
+  .blueprint span,
+  .rise {
     animation: none;
   }
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  backdrop-filter: blur(18px);
 }

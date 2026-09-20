@@ -2,6 +2,15 @@
 
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
+import {
+  ArrowIcon,
+  BoltIcon,
+  DropletIcon,
+  GridIcon,
+  LightIcon,
+  SoundIcon,
+  ThermometerIcon,
+} from "@/components/Icons";
 import LiveFeed from "@/components/LiveFeed";
 import ThemeToggle from "@/components/ThemeToggle";
 import type { Space } from "@/lib/types";
@@ -13,6 +22,7 @@ const FIELDS = [
     key: "temperature",
     label: "Temperature",
     unit: "°C",
+    icon: ThermometerIcon,
     step: 0.1,
     hint: "DHT22, °C. 19–23.5 scores full marks.",
   },
@@ -20,6 +30,7 @@ const FIELDS = [
     key: "humidity",
     label: "Humidity",
     unit: "% RH",
+    icon: DropletIcon,
     step: 1,
     hint: "DHT22, relative humidity. 30–55 scores full marks.",
   },
@@ -27,6 +38,7 @@ const FIELDS = [
     key: "sound",
     label: "Noise",
     unit: "dB",
+    icon: SoundIcon,
     step: 1,
     hint: "Mic peak-to-peak mapped to dB SPL. Under 45 scores full marks.",
   },
@@ -34,6 +46,7 @@ const FIELDS = [
     key: "light",
     label: "Light",
     unit: "lux",
+    icon: LightIcon,
     step: 10,
     hint: "Modulino Light, lux. 300–800 scores full marks.",
   },
@@ -148,10 +161,11 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-14">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-60">
+          <p className="eyebrow">
+            <BoltIcon className="h-4 w-4" />
             Ingest playground
           </p>
-          <h1 className="mt-2 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-sky-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
             Sensor test bench
           </h1>
           <p className="mt-3 max-w-xl text-sm opacity-75">
@@ -164,20 +178,24 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
         <div className="flex items-center gap-2">
           <Link
             href="/rooms"
-            className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
+            className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
           >
+            <GridIcon className="h-4 w-4 text-brand" />
             Live rooms
           </Link>
           <ThemeToggle />
         </div>
       </header>
 
-      <section className="card rounded-3xl p-5 sm:p-6">
+      <section className="panel p-5 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           {FIELDS.map((field) => (
             <label key={field.key} className="flex flex-col gap-1">
               <span className="flex items-baseline justify-between text-sm font-medium">
-                {field.label}
+                <span className="flex items-center gap-2">
+                  <field.icon className="h-4 w-4 text-brand" />
+                  {field.label}
+                </span>
                 <span className="font-mono text-xs opacity-50">{field.unit}</span>
               </span>
               <input
@@ -188,7 +206,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
                 onChange={(event) =>
                   setValues((current) => ({ ...current, [field.key]: event.target.value }))
                 }
-                className="rounded-2xl border border-[var(--surface-border)] bg-transparent px-4 py-2 font-mono text-sm outline-none focus:border-fuchsia-400"
+                className="clip-tag border border-line bg-transparent px-4 py-2 font-mono text-sm outline-none focus:border-[var(--accent)]"
               />
               <span className="text-xs opacity-55">{field.hint}</span>
             </label>
@@ -204,7 +222,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
             value={token}
             onChange={(event) => setToken(event.target.value)}
             placeholder="leave empty when ingest is open"
-            className="rounded-2xl border border-[var(--surface-border)] bg-transparent px-4 py-2 font-mono text-sm outline-none focus:border-fuchsia-400"
+            className="clip-tag border border-line bg-transparent px-4 py-2 font-mono text-sm outline-none focus:border-[var(--accent)]"
           />
         </label>
 
@@ -213,7 +231,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
             type="button"
             onClick={send}
             disabled={sending || !complete}
-            className="rounded-full bg-gradient-to-r from-fuchsia-400 to-sky-400 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:scale-[1.03] disabled:opacity-40 disabled:hover:scale-100"
+            className="clip-btn bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
           >
             {sending ? "Sending…" : "Send reading"}
           </button>
@@ -223,7 +241,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
               setValues(START);
               setResult(null);
             }}
-            className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
+            className="panel-sm clip-btn px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
           >
             Reset
           </button>
@@ -234,26 +252,22 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="card rounded-3xl p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] opacity-60">
-            Request body
-          </h2>
-          <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/80 p-4 font-mono text-xs text-fuchsia-100">
+        <div className="panel p-5">
+          <p className="eyebrow">Request body</p>
+          <pre className="clip-tag mt-3 overflow-x-auto bg-[var(--code-bg)] p-4 font-mono text-xs text-[color:var(--brand-soft)]">
 {JSON.stringify(payload, null, 2)}
           </pre>
           <p className="mt-3 text-xs opacity-60">
             The same thing from a terminal, so you can check the board and the
             network separately:
           </p>
-          <pre className="mt-2 overflow-x-auto rounded-2xl bg-black/80 p-4 font-mono text-[11px] text-sky-100">
+          <pre className="clip-tag mt-2 overflow-x-auto bg-[var(--code-bg)] p-4 font-mono text-[11px] text-[color:var(--accent-soft)]">
 {curl}
           </pre>
         </div>
 
-        <div className="card rounded-3xl p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] opacity-60">
-            Response
-          </h2>
+        <div className="panel p-5">
+          <p className="eyebrow">Response</p>
           {!result && (
             <p className="mt-3 text-sm opacity-60">
               Nothing sent yet. A good post answers <code>201</code>; a rejected
@@ -266,8 +280,8 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
                 <span
                   className={
                     result.status === 201
-                      ? "rounded-full bg-emerald-400/20 px-2 py-0.5 text-emerald-500"
-                      : "rounded-full bg-rose-400/20 px-2 py-0.5 text-rose-500"
+                      ? "clip-tag bg-[var(--brand)]/20 px-2 py-0.5 text-[color:var(--brand)]"
+                      : "clip-tag bg-rose-500/20 px-2 py-0.5 text-rose-500"
                   }
                 >
                   HTTP {result.status || "—"}
@@ -280,15 +294,16 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
                   <span className="opacity-75">{verdict.summary}</span>
                 </p>
               )}
-              <pre className="mt-3 max-h-72 overflow-auto rounded-2xl bg-black/80 p-4 font-mono text-[11px] text-emerald-100">
+              <pre className="clip-tag mt-3 max-h-72 overflow-auto bg-[var(--code-bg)] p-4 font-mono text-[11px] text-[color:var(--brand-soft)]">
 {JSON.stringify(result.response, null, 2)}
               </pre>
               {result.status === 201 && (
                 <Link
                   href={`/space/${SPACE_ID}`}
-                  className="mt-3 inline-block text-sm underline decoration-fuchsia-400 underline-offset-4"
+                  className="mt-3 inline-flex items-center gap-2 text-sm underline decoration-[var(--accent)] decoration-2 underline-offset-4"
                 >
-                  Open the bench room →
+                  Open the bench room
+                  <ArrowIcon className="h-4 w-4 text-accent" />
                 </Link>
               )}
             </>
@@ -298,7 +313,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
 
       <LiveFeed preferredId={SPACE_ID} initialSpaces={initialSpaces} />
 
-      <section className="card rounded-3xl p-5 sm:p-6">
+      <section className="panel p-5 sm:p-6">
         <h2 className="text-lg font-semibold">What the board has to do</h2>
         <ol className="mt-3 space-y-2 text-sm opacity-80">
           <li>
@@ -320,7 +335,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
           The line-by-line walkthrough of the firmware — why each sensor was
           chosen, how the mic becomes decibels, and how to calibrate it — is in{" "}
           <a
-            className="underline decoration-fuchsia-400 underline-offset-4"
+            className="underline decoration-[var(--accent)] decoration-2 underline-offset-4"
             href="https://github.com/CloudTwelve/stud-bud/blob/main/hardware/HOW-IT-WORKS.md"
           >
             hardware/HOW-IT-WORKS.md
