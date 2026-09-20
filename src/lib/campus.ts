@@ -48,27 +48,48 @@ function overflowPlot(index: number): Box {
   return { x: 8 + column * 38, y: 104 + row * 24, w: 30, h: 18 };
 }
 
-function packRooms(building: Box, spaces: ScoredSpace[]): RoomPlot[] {
-  const pad = 3;
-  const gap = 2;
-  const inner = {
-    x: building.x + pad,
-    y: building.y + pad + 4,
-    w: building.w - pad * 2,
-    h: building.h - pad * 2 - 4,
-  };
-  const columns = Math.ceil(Math.sqrt(spaces.length));
-  const rows = Math.ceil(spaces.length / columns);
-  const cellWidth = (inner.w - gap * (columns - 1)) / columns;
-  const cellHeight = (inner.h - gap * (rows - 1)) / rows;
+const PAD = 3;
+const GAP = 2;
+/** Below this a block is too small to hit, so the plot grows instead. */
+const MIN_CELL = 5;
 
-  return spaces.map((space, index) => ({
-    space,
-    x: inner.x + (index % columns) * (cellWidth + gap),
-    y: inner.y + Math.floor(index / columns) * (cellHeight + gap),
-    w: cellWidth,
-    h: cellHeight,
-  }));
+/**
+ * Lay rooms out inside a plot, widening the grid before it runs out of height
+ * and then growing the plot itself, so a block never collapses to nothing.
+ */
+function packRooms(
+  building: Box,
+  spaces: ScoredSpace[],
+): { box: Box; rooms: RoomPlot[] } {
+  const inner = {
+    x: building.x + PAD,
+    y: building.y + PAD + 4,
+    w: building.w - PAD * 2,
+    h: building.h - PAD * 2 - 4,
+  };
+  const fits = (extent: number) => Math.max(1, Math.floor((extent + GAP) / (MIN_CELL + GAP)));
+  const columns = Math.max(
+    1,
+    Math.min(
+      fits(inner.w),
+      Math.max(Math.ceil(Math.sqrt(spaces.length)), Math.ceil(spaces.length / fits(inner.h))),
+    ),
+  );
+  const rows = Math.ceil(spaces.length / columns);
+  const height = Math.max(inner.h, rows * MIN_CELL + (rows - 1) * GAP);
+  const cellWidth = (inner.w - GAP * (columns - 1)) / columns;
+  const cellHeight = (height - GAP * (rows - 1)) / rows;
+
+  return {
+    box: { ...building, h: building.h + (height - inner.h) },
+    rooms: spaces.map((space, index) => ({
+      space,
+      x: inner.x + (index % columns) * (cellWidth + GAP),
+      y: inner.y + Math.floor(index / columns) * (cellHeight + GAP),
+      w: cellWidth,
+      h: cellHeight,
+    })),
+  };
 }
 
 export function layoutCampus(spaces: ScoredSpace[]): BuildingPlot[] {
@@ -101,8 +122,8 @@ export function layoutCampus(spaces: ScoredSpace[]): BuildingPlot[] {
 
   return [...byBuilding.entries()]
     .map(([name, group]) => {
-      const box = placed.get(name) as Box;
-      return { name, ...box, rooms: packRooms(box, group) };
+      const { box, rooms } = packRooms(placed.get(name) as Box, group);
+      return { name, ...box, rooms };
     })
     .sort((a, b) => a.y - b.y || a.x - b.x);
 }
