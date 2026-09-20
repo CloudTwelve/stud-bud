@@ -1,3 +1,4 @@
+import { isMetricStale, measuredAt } from "./freshness";
 import type { Metric, MetricVerdict, Reading, SpaceVerdict } from "./types";
 
 /**
@@ -18,6 +19,18 @@ function band(
   }
   if (value >= hardHigh) return 0;
   return Math.round(((hardHigh - value) / (hardHigh - idealHigh)) * 100);
+}
+
+function minutesAgo(iso: string, now: number): string {
+  const minutes = Math.round((now - Date.parse(iso)) / 60000);
+  if (!Number.isFinite(minutes)) return "a while";
+  if (minutes < 120) return `${minutes} min`;
+  return `${Math.round(minutes / 60)} h`;
+}
+
+function list(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 function comment(score: number, good: string, ok: string, bad: string): string {
@@ -65,6 +78,7 @@ export const DEFAULT_WEIGHTS: Weights = PRESETS[0].weights;
 export function evaluate(
   reading: Reading,
   requested: Weights = DEFAULT_WEIGHTS,
+  now: number = Date.now(),
 ): SpaceVerdict {
   const weights =
     Object.values(requested).some((weight) => weight > 0) ? requested : DEFAULT_WEIGHTS;
@@ -78,7 +92,7 @@ export function evaluate(
     100 * Math.min(1, free / Math.max(1, reading.totalSeats * 0.25)),
   );
 
-  const metrics: MetricVerdict[] = [
+  const measured: Omit<MetricVerdict, "stale">[] = [
     {
       metric: "temperature",
       label: "Temperature",
@@ -141,12 +155,33 @@ export function evaluate(
     },
   ];
 
-  const totalWeight = metrics.reduce((sum, m) => sum + weights[m.metric], 0);
-  const score = Math.round(
-    metrics.reduce((sum, m) => sum + m.score * weights[m.metric], 0) / totalWeight,
+  // A sweep carries forward what it didn't measure, so a dead sensor rides
+  // along on the healthy ones' timestamp. Its number stays visible, marked,
+  // but it stops voting: a stale value is worse than a missing one.
+  const metrics: MetricVerdict[] = measured.map((metric) =>
+    isMetricStale(reading, metric.metric, now)
+      ? {
+          ...metric,
+          stale: true,
+          comment: `No reading for ${minutesAgo(measuredAt(reading, metric.metric), now)} — this sensor has gone quiet, so it isn't counted.`,
+        }
+      : { ...metric, stale: false },
   );
 
-  const weakest = [...metrics].sort((a, b) => a.score - b.score)[0];
+  const counted = metrics.filter((m) => !m.stale);
+  const totalWeight = counted.reduce((sum, m) => sum + weights[m.metric], 0);
+  const score =
+    totalWeight === 0
+      ? 0
+      : Math.round(
+          counted.reduce((sum, m) => sum + m.score * weights[m.metric], 0) /
+            totalWeight,
+        );
+
+  const weakest = [...(counted.length > 0 ? counted : metrics)].sort(
+    (a, b) => a.score - b.score,
+  )[0];
+  const quiet = metrics.filter((m) => m.stale);
   const headline =
     score >= 80
       ? "Great place to study"
@@ -155,10 +190,14 @@ export function evaluate(
         : score >= 40
           ? "Only if you have to"
           : "Study somewhere else";
-  const summary =
+  const body =
     score >= 80
       ? `Conditions are in a good range across the board and ${free} seats are open.`
       : `${weakest.label.toLowerCase()} is the weak spot: ${weakest.comment.toLowerCase()}`;
+  const summary =
+    quiet.length === 0
+      ? body
+      : `${body} Scored without ${list(quiet.map((m) => m.label.toLowerCase()))}: not reporting.`;
 
   return { score, headline, summary, metrics };
 }

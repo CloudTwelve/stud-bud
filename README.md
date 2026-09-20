@@ -110,6 +110,11 @@ about temperature posts its seat counts, and neither wipes the other's numbers.
 A room the server has never seen has nothing to carry forward, so the sweep
 that creates it must carry all six.
 
+A carried value keeps the age it was measured at, not the age of the sweep it
+rides in. If one sensor dies while the others keep posting, that metric alone
+goes stale after 45 minutes: the card strikes it through, marks it `no signal`,
+and drops it from the score, while the room stays live on the rest.
+
 Readings are stored in SQLite (`.data/studbud.db` by default, created and
 seeded with demo rooms on first boot), so history survives restarts. The
 dashboard updates the instant a sweep lands via `/api/stream`, with a 30 s poll

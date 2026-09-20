@@ -174,15 +174,22 @@ export default function SpaceCard({
             <dt className="flex items-center gap-2 text-xs uppercase tracking-wide opacity-60">
               <Icon className="h-3.5 w-3.5 text-brand" />
               {metric.label}
+              {metric.stale && (
+                <span className="ml-auto text-[0.6rem] font-semibold tracking-wider opacity-70">
+                  no signal
+                </span>
+              )}
             </dt>
             <dd className="mt-1 flex items-center justify-between gap-3">
-              <span className="text-base font-semibold tabular-nums">
+              <span
+                className={`text-base font-semibold tabular-nums ${metric.stale ? "line-through opacity-40" : ""}`}
+              >
                 {metric.value}
               </span>
               <span className="h-1.5 w-16 overflow-hidden bg-black/10 dark:bg-white/10">
                 <span
                   className={`block h-full bg-gradient-to-r ${scoreTone(metric.score).bar}`}
-                  style={{ width: `${metric.score}%` }}
+                  style={{ width: `${metric.stale ? 0 : metric.score}%` }}
                 />
               </span>
             </dd>

@@ -19,8 +19,14 @@ export interface Reading {
   occupiedSeats: number;
   /** Total seats the robot dog counted in the room */
   totalSeats: number;
-  /** ISO timestamp */
+  /** ISO timestamp of the sweep that wrote this row */
   recordedAt: string;
+  /**
+   * ISO timestamp per metric of when that number was last actually measured.
+   * A sweep carries forward whatever it didn't measure, so a carried value is
+   * older than the row it sits in. Absent on rows written before this existed.
+   */
+  measuredAt?: Partial<Record<Metric, string>>;
 }
 
 export interface Space {
@@ -51,6 +57,8 @@ export interface MetricVerdict {
   value: string;
   score: number;
   comment: string;
+  /** This sensor stopped reporting; the value is old and doesn't count. */
+  stale: boolean;
 }
 
 export interface SpaceVerdict {
