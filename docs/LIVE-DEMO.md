@@ -22,6 +22,8 @@ mismatch is the most common mistake here.
 
 ## 1. Put the server somewhere both devices can reach
 
+### Option A: your laptop (same network)
+
 On your laptop:
 
 ```bash
@@ -45,6 +47,41 @@ curl -s -o /dev/null -w '%{http_code}\n' http://<laptop-ip>:3000/api/readings
 
 `200` from another device on the network means you're clear; anything else is
 almost always your laptop's firewall blocking port 3000.
+
+### Option B: the deployed site (board posts from anywhere)
+
+Point the hardware at `https://<your-app>.vercel.app/api/readings` instead of a
+laptop IP, and the board only needs internet — no shared network, laptop can be
+closed. Two pieces of setup, both in the Vercel dashboard:
+
+1. **Settings → Deployment Protection → Vercel Authentication: off** for
+   Production. While it's on, every request is answered with a `302` to
+   `vercel.com/sso-api`; the board has no browser session, so it never reaches
+   the API.
+2. **Storage → Create Database → Postgres** (Neon's free tier is plenty),
+   attached to the project. Vercel injects `DATABASE_URL` into the deployment,
+   which is all the app needs — redeploy and it uses Postgres automatically.
+
+Step 2 is not optional. Vercel runs each request on a throwaway machine with a
+read-only disk, so without a database the app falls back to an in-memory store:
+your POST returns `201` and the reading disappears, or lands on a different
+machine than the one rendering the page. Postgres is the shared place every
+instance can read and write.
+
+Sanity-check the deployment from anywhere before touching hardware:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-app>.vercel.app/api/readings
+```
+
+`200` means you're clear. `401` means you set `STUDBUD_INGEST_TOKEN` in Vercel
+(fine — the board just has to send the same value). `302` means protection is
+still on.
+
+One behaviour difference worth knowing: live updates arrive over SSE locally,
+where the POST and the open connection share one process. On Vercel they may
+not, so the dashboard's 30-second poll is what refreshes the card. Readings are
+never lost, they can just take up to half a minute to appear.
 
 ## 2. Arduino UNO Q — temperature, humidity, sound, light
 

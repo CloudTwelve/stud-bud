@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import type { QueryResultRow } from "pg";
 import type { HourlyPoint, Reading } from "./types";
 
 export interface SpaceRow {
@@ -9,23 +10,42 @@ export interface SpaceRow {
   building: string;
 }
 
+/**
+ * Every method is async because Postgres is a server over the network. SQLite
+ * answers immediately and simply returns already-resolved promises.
+ */
 export interface Backend {
-  kind: "sqlite" | "memory";
-  listSpaces(): SpaceRow[];
-  getSpace(id: string): SpaceRow | undefined;
-  insertSpace(row: SpaceRow): void;
-  renameSpace(id: string, name?: string, building?: string): void;
-  history(id: string, limit: number): Reading[];
-  hourly(id: string, hours: number): HourlyPoint[];
-  insertReading(reading: Reading): void;
-  isEmpty(): boolean;
+  kind: "sqlite" | "memory" | "postgres";
+  listSpaces(): Promise<SpaceRow[]>;
+  getSpace(id: string): Promise<SpaceRow | undefined>;
+  insertSpace(row: SpaceRow): Promise<void>;
+  renameSpace(id: string, name?: string, building?: string): Promise<void>;
+  history(id: string, limit: number): Promise<Reading[]>;
+  hourly(id: string, hours: number): Promise<HourlyPoint[]>;
+  insertReading(reading: Reading): Promise<void>;
+  insertReadings(readings: Reading[]): Promise<void>;
+  isEmpty(): Promise<boolean>;
+  /**
+   * Run `fill` at most once across every instance sharing this database.
+   * Serverless hosts answer requests on many machines at once, so seeding has
+   * to be a mutual exclusion problem rather than an `if (empty)` check.
+   */
+  seedOnce(fill: () => Promise<void>): Promise<void>;
 }
 
 const DB_PATH = process.env.STUDBUD_DB
   ? resolve(/* turbopackIgnore: true */ process.env.STUDBUD_DB)
   : join(process.cwd(), ".data", "studbud.db");
 
-const SCHEMA = `
+const POSTGRES_URL =
+  process.env.STUDBUD_POSTGRES_URL ??
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_URL;
+
+/** Any integer; Postgres advisory locks are keyed by number, not by name. */
+const SEED_LOCK_KEY = 8_213_057;
+
+const SQLITE_SCHEMA = `
   CREATE TABLE IF NOT EXISTS spaces (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -38,6 +58,27 @@ const SCHEMA = `
     humidity REAL NOT NULL,
     sound REAL NOT NULL,
     light REAL NOT NULL,
+    occupied_seats INTEGER NOT NULL,
+    total_seats INTEGER NOT NULL,
+    recorded_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS readings_space_time
+    ON readings (space_id, recorded_at DESC);
+`;
+
+const POSTGRES_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS spaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    building TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS readings (
+    id BIGSERIAL PRIMARY KEY,
+    space_id TEXT NOT NULL REFERENCES spaces(id),
+    temperature DOUBLE PRECISION NOT NULL,
+    humidity DOUBLE PRECISION NOT NULL,
+    sound DOUBLE PRECISION NOT NULL,
+    light DOUBLE PRECISION NOT NULL,
     occupied_seats INTEGER NOT NULL,
     total_seats INTEGER NOT NULL,
     recorded_at TEXT NOT NULL
@@ -60,12 +101,12 @@ interface ReadingRow {
 function toReading(row: ReadingRow): Reading {
   return {
     spaceId: row.space_id,
-    temperature: row.temperature,
-    humidity: row.humidity,
-    sound: row.sound,
-    light: row.light,
-    occupiedSeats: row.occupied_seats,
-    totalSeats: row.total_seats,
+    temperature: Number(row.temperature),
+    humidity: Number(row.humidity),
+    sound: Number(row.sound),
+    light: Number(row.light),
+    occupiedSeats: Number(row.occupied_seats),
+    totalSeats: Number(row.total_seats),
     recordedAt: row.recorded_at,
   };
 }
@@ -75,37 +116,63 @@ function sqliteBackend(): Backend | null {
     // `process.getBuiltinModule` keeps bundlers from trying to resolve
     // `node:sqlite`, which only exists on Node 22.5+.
     const sqlite = process.getBuiltinModule?.("node:sqlite") as
-      | { DatabaseSync: new (path: string) => DatabaseSync }
-      | undefined;
+      { DatabaseSync: new (path: string) => DatabaseSync } | undefined;
     if (!sqlite) return null;
 
     mkdirSync(dirname(DB_PATH), { recursive: true });
     const db = new sqlite.DatabaseSync(DB_PATH);
     db.exec("PRAGMA journal_mode = WAL");
-    db.exec(SCHEMA);
+    db.exec(SQLITE_SCHEMA);
+
+    const insert = (reading: Reading) =>
+      void db
+        .prepare(
+          `INSERT INTO readings
+             (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          reading.spaceId,
+          reading.temperature,
+          reading.humidity,
+          reading.sound,
+          reading.light,
+          reading.occupiedSeats,
+          reading.totalSeats,
+          reading.recordedAt,
+        );
+
+    const isEmpty = async () =>
+      (
+        db.prepare("SELECT COUNT(*) AS count FROM spaces").get() as {
+          count: number;
+        }
+      ).count === 0;
 
     return {
       kind: "sqlite",
-      listSpaces: () =>
+      listSpaces: async () =>
         db
           .prepare("SELECT id, name, building FROM spaces ORDER BY name")
           .all() as unknown as SpaceRow[],
-      getSpace: (id) =>
-        db.prepare("SELECT id, name, building FROM spaces WHERE id = ?").get(id) as
-          | SpaceRow
-          | undefined,
-      insertSpace: (row) =>
+      getSpace: async (id) =>
+        db
+          .prepare("SELECT id, name, building FROM spaces WHERE id = ?")
+          .get(id) as SpaceRow | undefined,
+      insertSpace: async (row) =>
         void db
-          .prepare("INSERT OR IGNORE INTO spaces (id, name, building) VALUES (?, ?, ?)")
+          .prepare(
+            "INSERT OR IGNORE INTO spaces (id, name, building) VALUES (?, ?, ?)",
+          )
           .run(row.id, row.name, row.building),
-      renameSpace: (id, name, building) =>
+      renameSpace: async (id, name, building) =>
         void db
           .prepare(
             `UPDATE spaces SET name = COALESCE(?, name), building = COALESCE(?, building)
              WHERE id = ?`,
           )
           .run(name ?? null, building ?? null, id),
-      history: (id, limit) =>
+      history: async (id, limit) =>
         (
           db
             .prepare(
@@ -116,8 +183,10 @@ function sqliteBackend(): Backend | null {
         )
           .map(toReading)
           .reverse(),
-      hourly: (id, hours) => {
-        const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+      hourly: async (id, hours) => {
+        const since = new Date(
+          Date.now() - hours * 60 * 60 * 1000,
+        ).toISOString();
         const rows = db
           .prepare(
             `SELECT
@@ -136,14 +205,131 @@ function sqliteBackend(): Backend | null {
           .all(id, since) as unknown as HourlyPoint[];
         return rows.map((row) => ({ ...row, hour: `${row.hour}:00:00.000Z` }));
       },
-      insertReading: (reading) =>
-        void db
-          .prepare(
-            `INSERT INTO readings
-               (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      insertReading: async (reading) => insert(reading),
+      insertReadings: async (readings) => {
+        db.exec("BEGIN");
+        try {
+          for (const reading of readings) insert(reading);
+          db.exec("COMMIT");
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+      },
+      isEmpty,
+      seedOnce: async (fill) => {
+        if (await isEmpty()) await fill();
+      },
+    };
+  } catch (error) {
+    console.warn("[stud-bud] could not open SQLite", error);
+    return null;
+  }
+}
+
+async function postgresBackend(url: string): Promise<Backend | null> {
+  try {
+    const { Pool } = await import("pg");
+    const pool = new Pool({
+      connectionString: url,
+      // Hosted providers terminate TLS with certificates this client cannot
+      // chain to a local root store; the connection is still encrypted. A
+      // local Postgres usually speaks no TLS at all.
+      ssl: /sslmode=disable|@localhost|@127\.0\.0\.1/.test(url)
+        ? false
+        : { rejectUnauthorized: false },
+      max: 3,
+    });
+    await pool.query(POSTGRES_SCHEMA);
+
+    const query = async <T extends QueryResultRow>(
+      text: string,
+      values: unknown[] = [],
+    ) => (await pool.query<T>(text, values)).rows;
+
+    const isEmpty = async () =>
+      (
+        await query<{ count: string }>("SELECT COUNT(*) AS count FROM spaces")
+      )[0].count === "0";
+
+    return {
+      kind: "postgres",
+      listSpaces: () =>
+        query<SpaceRow>("SELECT id, name, building FROM spaces ORDER BY name"),
+      getSpace: async (id) =>
+        (
+          await query<SpaceRow>(
+            "SELECT id, name, building FROM spaces WHERE id = $1",
+            [id],
           )
-          .run(
+        )[0],
+      insertSpace: async (row) => {
+        await query(
+          `INSERT INTO spaces (id, name, building) VALUES ($1, $2, $3)
+           ON CONFLICT (id) DO NOTHING`,
+          [row.id, row.name, row.building],
+        );
+      },
+      renameSpace: async (id, name, building) => {
+        await query(
+          `UPDATE spaces SET name = COALESCE($1, name), building = COALESCE($2, building)
+           WHERE id = $3`,
+          [name ?? null, building ?? null, id],
+        );
+      },
+      history: async (id, limit) =>
+        (
+          await query<ReadingRow>(
+            `SELECT * FROM readings WHERE space_id = $1
+             ORDER BY recorded_at DESC LIMIT $2`,
+            [id, limit],
+          )
+        )
+          .map(toReading)
+          .reverse(),
+      hourly: async (id, hours) => {
+        const since = new Date(
+          Date.now() - hours * 60 * 60 * 1000,
+        ).toISOString();
+        const rows = await query<{
+          hour: string;
+          temperature: number;
+          humidity: number;
+          sound: number;
+          light: number;
+          fullness: number;
+          samples: string;
+        }>(
+          `SELECT
+             substr(recorded_at, 1, 13) AS hour,
+             AVG(temperature) AS temperature,
+             AVG(humidity) AS humidity,
+             AVG(sound) AS sound,
+             AVG(light) AS light,
+             AVG(occupied_seats::float / GREATEST(total_seats, 1)) AS fullness,
+             COUNT(*) AS samples
+           FROM readings
+           WHERE space_id = $1 AND recorded_at >= $2
+           GROUP BY hour
+           ORDER BY hour`,
+          [id, since],
+        );
+        return rows.map((row) => ({
+          hour: `${row.hour}:00:00.000Z`,
+          temperature: Number(row.temperature),
+          humidity: Number(row.humidity),
+          sound: Number(row.sound),
+          light: Number(row.light),
+          fullness: Number(row.fullness),
+          samples: Number(row.samples),
+        }));
+      },
+      insertReading: async (reading) => {
+        await query(
+          `INSERT INTO readings
+             (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
             reading.spaceId,
             reading.temperature,
             reading.humidity,
@@ -152,13 +338,49 @@ function sqliteBackend(): Backend | null {
             reading.occupiedSeats,
             reading.totalSeats,
             reading.recordedAt,
-          ),
-      isEmpty: () =>
-        (db.prepare("SELECT COUNT(*) AS count FROM spaces").get() as { count: number })
-          .count === 0,
+          ],
+        );
+      },
+      insertReadings: async (readings) => {
+        if (readings.length === 0) return;
+        const values: unknown[] = [];
+        const tuples = readings.map((reading, index) => {
+          values.push(
+            reading.spaceId,
+            reading.temperature,
+            reading.humidity,
+            reading.sound,
+            reading.light,
+            reading.occupiedSeats,
+            reading.totalSeats,
+            reading.recordedAt,
+          );
+          const base = index * 8;
+          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+        });
+        await query(
+          `INSERT INTO readings
+             (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
+           VALUES ${tuples.join(", ")}`,
+          values,
+        );
+      },
+      isEmpty,
+      seedOnce: async (fill) => {
+        if (!(await isEmpty())) return;
+        const client = await pool.connect();
+        try {
+          // Whoever loses the race waits here, then sees a non-empty database.
+          await client.query("SELECT pg_advisory_lock($1)", [SEED_LOCK_KEY]);
+          if (await isEmpty()) await fill();
+        } finally {
+          await client.query("SELECT pg_advisory_unlock($1)", [SEED_LOCK_KEY]);
+          client.release();
+        }
+      },
     };
   } catch (error) {
-    console.warn("[stud-bud] could not open SQLite", error);
+    console.warn("[stud-bud] could not open Postgres", error);
     return null;
   }
 }
@@ -167,15 +389,24 @@ function memoryBackend(): Backend {
   const spaces = new Map<string, SpaceRow>();
   const readings = new Map<string, Reading[]>();
 
+  const insert = (reading: Reading) => {
+    const list = readings.get(reading.spaceId) ?? [];
+    list.push(reading);
+    list.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+    readings.set(reading.spaceId, list);
+  };
+
+  const isEmpty = async () => spaces.size === 0;
+
   return {
     kind: "memory",
-    listSpaces: () =>
+    listSpaces: async () =>
       [...spaces.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    getSpace: (id) => spaces.get(id),
-    insertSpace: (row) => {
+    getSpace: async (id) => spaces.get(id),
+    insertSpace: async (row) => {
       if (!spaces.has(row.id)) spaces.set(row.id, row);
     },
-    renameSpace: (id, name, building) => {
+    renameSpace: async (id, name, building) => {
       const row = spaces.get(id);
       if (!row) return;
       spaces.set(id, {
@@ -184,8 +415,8 @@ function memoryBackend(): Backend {
         building: building ?? row.building,
       });
     },
-    history: (id, limit) => (readings.get(id) ?? []).slice(-limit),
-    hourly: (id, hours) => {
+    history: async (id, limit) => (readings.get(id) ?? []).slice(-limit),
+    hourly: async (id, hours) => {
       const since = Date.now() - hours * 60 * 60 * 1000;
       const buckets = new Map<string, Reading[]>();
       for (const reading of readings.get(id) ?? []) {
@@ -212,35 +443,52 @@ function memoryBackend(): Backend {
           samples: group.length,
         }));
     },
-    insertReading: (reading) => {
-      const list = readings.get(reading.spaceId) ?? [];
-      list.push(reading);
-      list.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
-      readings.set(reading.spaceId, list);
+    insertReading: async (reading) => insert(reading),
+    insertReadings: async (list) => {
+      for (const reading of list) insert(reading);
     },
-    isEmpty: () => spaces.size === 0,
+    isEmpty,
+    seedOnce: async (fill) => {
+      if (await isEmpty()) await fill();
+    },
   };
 }
 
 const globalBackend = globalThis as typeof globalThis & {
-  __studBudBackend?: Backend;
+  __studBudBackend?: Promise<Backend>;
 };
 
-/**
- * SQLite whenever the runtime has `node:sqlite` and a writable disk; otherwise
- * an in-process store so read-only serverless hosts still serve the dashboard
- * (history then lives only as long as the instance).
- */
-export function backend(): Backend {
-  if (!globalBackend.__studBudBackend) {
-    const sqlite = process.env.STUDBUD_MEMORY_STORE === "1" ? null : sqliteBackend();
-    if (!sqlite) {
-      console.warn(
-        "[stud-bud] SQLite unavailable (read-only filesystem or Node < 22.5); " +
-          "falling back to an in-memory store; history resets with the instance.",
-      );
-    }
-    globalBackend.__studBudBackend = sqlite ?? memoryBackend();
+async function open(): Promise<Backend> {
+  if (process.env.STUDBUD_MEMORY_STORE === "1") return memoryBackend();
+
+  if (POSTGRES_URL) {
+    const postgres = await postgresBackend(POSTGRES_URL);
+    if (postgres) return postgres;
   }
+
+  const sqlite = sqliteBackend();
+  if (sqlite) return sqlite;
+
+  console.warn(
+    "[stud-bud] no Postgres URL and SQLite unavailable (read-only filesystem " +
+      "or Node < 22.5); falling back to an in-memory store; history resets " +
+      "with the instance.",
+  );
+  return memoryBackend();
+}
+
+/**
+ * Postgres when a connection string is configured — the only option that
+ * survives on a serverless host, where the filesystem is read-only and every
+ * request may land on a different machine. Otherwise SQLite on disk, and
+ * in-memory as a last resort so the dashboard still renders.
+ *
+ * The promise itself is cached, so concurrent callers share one pool.
+ */
+export function backend(): Promise<Backend> {
+  globalBackend.__studBudBackend ??= open().catch((error) => {
+    globalBackend.__studBudBackend = undefined;
+    throw error;
+  });
   return globalBackend.__studBudBackend;
 }

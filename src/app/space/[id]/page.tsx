@@ -12,7 +12,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const space = getSpace(id);
+  const space = await getSpace(id);
   return {
     title: space ? `${space.name} · Stud-Bud` : "Room not found · Stud-Bud",
     description: space
@@ -23,10 +23,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function SpacePage({ params }: PageProps) {
   const { id } = await params;
-  const space = getSpace(id);
+  const space = await getSpace(id);
   if (!space) notFound();
 
-  const hourly = hourlyHistory(id);
+  const hourly = await hourlyHistory(id);
   return (
     <SpaceDetail
       initial={{

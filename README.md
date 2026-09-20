@@ -16,10 +16,24 @@ Other scripts: `npm run build`, `npm start`, `npm run lint`.
 | Variable | Purpose |
 | --- | --- |
 | `STUDBUD_INGEST_TOKEN` | When set, `POST /api/readings` requires `Authorization: Bearer <token>`. Unset means open ingest (local development only). |
-| `STUDBUD_DB` | SQLite file path. Defaults to `.data/studbud.db`. |
+| `DATABASE_URL` | Postgres connection string. When set, it is used instead of SQLite — this is what makes readings durable on a serverless host. `POSTGRES_URL` and `STUDBUD_POSTGRES_URL` are also accepted. |
+| `STUDBUD_DB` | SQLite file path, used when no Postgres URL is set. Defaults to `.data/studbud.db`. |
 | `STUDBUD_MEMORY_STORE` | Set to `1` to skip SQLite and keep readings in memory. |
 | `STUDBUD_BASE_URL` | Public URL used for Open Graph / share metadata. |
 | `STUDBUD_NO_SEED` | Set to `1` to never generate the five demo rooms, so the dashboard shows only rooms real hardware has posted. |
+
+Storage is chosen at startup: Postgres if a connection string is configured,
+otherwise SQLite on disk, otherwise an in-memory store that resets with the
+process. Local development needs no database at all.
+
+### Deploying
+
+On Vercel, attach a Postgres database (Storage → Create Database → Neon) so
+`DATABASE_URL` is injected; without it every request gets a fresh machine with
+a read-only disk and readings vanish. For hardware to POST to the deployment,
+turn off Settings → Deployment Protection → Vercel Authentication, which
+otherwise answers unauthenticated requests with a redirect to Vercel's login.
+Full steps are in [`docs/LIVE-DEMO.md`](docs/LIVE-DEMO.md).
 
 Going live with real hardware — what to switch off, in what order — is in
 [`docs/DEMO-DAY.md`](docs/DEMO-DAY.md), which also has a reading order for the

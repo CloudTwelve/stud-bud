@@ -11,8 +11,12 @@ export function isStale(reading: Reading): boolean {
   return !Number.isFinite(age) || age > STALE_AFTER_MINUTES * 60 * 1000;
 }
 
-function assemble(row: { id: string; name: string; building: string }): Space | null {
-  const history = backend().history(row.id, HISTORY_POINTS);
+async function assemble(row: {
+  id: string;
+  name: string;
+  building: string;
+}): Promise<Space | null> {
+  const history = await (await backend()).history(row.id, HISTORY_POINTS);
   if (history.length === 0) return null;
   const latest = history[history.length - 1];
   return {
@@ -25,36 +29,39 @@ function assemble(row: { id: string; name: string; building: string }): Space | 
   };
 }
 
-export function listSpaces(): Space[] {
-  seedIfEmpty();
-  return backend()
-    .listSpaces()
-    .map(assemble)
-    .filter((space): space is Space => space !== null);
+export async function listSpaces(): Promise<Space[]> {
+  await seedIfEmpty();
+  const rows = await (await backend()).listSpaces();
+  const spaces = await Promise.all(rows.map(assemble));
+  return spaces.filter((space): space is Space => space !== null);
 }
 
-export function getSpace(id: string): Space | undefined {
-  seedIfEmpty();
-  const row = backend().getSpace(id);
-  return row ? (assemble(row) ?? undefined) : undefined;
+export async function getSpace(id: string): Promise<Space | undefined> {
+  await seedIfEmpty();
+  const row = await (await backend()).getSpace(id);
+  return row ? ((await assemble(row)) ?? undefined) : undefined;
 }
 
-export function hourlyHistory(id: string, hours = 24): HourlyPoint[] {
-  return backend()
-    .hourly(id, hours)
-    .map((point) => ({
-      hour: point.hour,
-      temperature: Number(point.temperature.toFixed(1)),
-      humidity: Number(point.humidity.toFixed(1)),
-      sound: Number(point.sound.toFixed(1)),
-      light: Math.round(point.light),
-      fullness: Number(point.fullness.toFixed(3)),
-      samples: point.samples,
-    }));
+export async function hourlyHistory(
+  id: string,
+  hours = 24,
+): Promise<HourlyPoint[]> {
+  const points = await (await backend()).hourly(id, hours);
+  return points.map((point) => ({
+    hour: point.hour,
+    temperature: Number(point.temperature.toFixed(1)),
+    humidity: Number(point.humidity.toFixed(1)),
+    sound: Number(point.sound.toFixed(1)),
+    light: Math.round(point.light),
+    fullness: Number(point.fullness.toFixed(3)),
+    samples: point.samples,
+  }));
 }
 
 /** The hour of day (local) with the lowest noise + fullness across the window. */
-export function bestHour(points: HourlyPoint[]): { hour: number; sound: number } | null {
+export function bestHour(
+  points: HourlyPoint[],
+): { hour: number; sound: number } | null {
   if (points.length === 0) return null;
   const best = [...points].sort(
     (a, b) => a.sound + a.fullness * 30 - (b.sound + b.fullness * 30),
@@ -84,27 +91,27 @@ export class MissingSeatCountsError extends Error {
   }
 }
 
-export function recordReading(payload: IngestPayload): Space {
-  seedIfEmpty();
-  const store = backend();
+export async function recordReading(payload: IngestPayload): Promise<Space> {
+  await seedIfEmpty();
+  const store = await backend();
 
-  const previous = store.history(payload.spaceId, 1)[0];
+  const previous = (await store.history(payload.spaceId, 1))[0];
   const occupiedSeats = payload.occupiedSeats ?? previous?.occupiedSeats;
   const totalSeats = payload.totalSeats ?? previous?.totalSeats;
   if (occupiedSeats === undefined || totalSeats === undefined) {
     throw new MissingSeatCountsError(payload.spaceId);
   }
 
-  store.insertSpace({
+  await store.insertSpace({
     id: payload.spaceId,
     name: payload.name ?? payload.spaceId,
     building: payload.building ?? "Unknown building",
   });
   if (payload.name || payload.building) {
-    store.renameSpace(payload.spaceId, payload.name, payload.building);
+    await store.renameSpace(payload.spaceId, payload.name, payload.building);
   }
 
-  store.insertReading({
+  await store.insertReading({
     spaceId: payload.spaceId,
     temperature: payload.temperature,
     humidity: payload.humidity,
@@ -115,7 +122,7 @@ export function recordReading(payload: IngestPayload): Space {
     recordedAt: payload.recordedAt ?? new Date().toISOString(),
   });
 
-  const space = getSpace(payload.spaceId);
+  const space = await getSpace(payload.spaceId);
   if (!space) throw new Error(`space ${payload.spaceId} vanished after insert`);
   readingEvents().emit(READING_RECORDED, space.id);
   return space;
