@@ -8,4 +8,12 @@ profiles:
       - DHT sensor library (1.4.6)
       - Adafruit Unified Sensor (1.1.15)
       - Arduino_Modulino (0.9.1)
+      # Arduino_Modulino.h includes every Modulino node's driver, so a profile
+      # build needs their headers even though only Light is wired up.
+      - STM32duino VL53L4CD (1.0.5)
+      - STM32duino VL53L4ED (1.0.1)
+      - Arduino_LSM6DSOX (1.1.2)
+      - Arduino_LPS22HB (1.0.3)
+      - Arduino_HS300x (1.0.1)
+      - Arduino_LTR381RGB (1.0.1)
 default_profile: default

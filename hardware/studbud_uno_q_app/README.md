@@ -83,6 +83,13 @@ in *Library Manager* (the books icon): search `Modulino`, install
 `DHT.h` (`DHT sensor library` by Adafruit, which also pulls in
 `Adafruit Unified Sensor`).
 
+A missing header from *inside* a library — `vl53l4cd_class.h`,
+`Arduino_LSM6DSOX.h` and friends — is a different problem. `Arduino_Modulino.h`
+includes the driver for every Modulino node, so all of them must be present even
+though only Light is wired up, and a profile build installs exactly what
+`sketch/sketch.yaml` lists and resolves no dependencies of its own. The fix is
+always to add the missing library, with a version, to that list.
+
 If you're compiling from a **downloaded zip in Arduino IDE 2** rather than
 importing the folder into App Lab, expect this error every time — IDE 2 never
 reads `sketch/sketch.yaml`, so nothing gets installed for you. It also can't run
@@ -118,6 +125,8 @@ One app per room: give each board its own `spaceId`.
 | --- | --- |
 | Board never appears in App Lab | charge-only USB-C cable, or Linux still booting |
 | `Arduino_Modulino.h: No such file or directory` | the library isn't installed — see *If a library is missing* above |
+| `vl53l4cd_class.h: No such file or directory` | a Modulino driver dependency is missing from `sketch.yaml` |
+| `Library install failed: ... lookup downloads.arduino.cc` | the board has no working DNS; put it on a phone hotspot |
 | `Modulino Light not found` | Qwiic cable not seated, or plugged into a Modulino's *output* socket |
 | `lux=nan` forever | the node answered `begin()` but `update()` keeps failing — reseat the cable |
 | `t=nan h=nan` | DHT22 pull-up resistor missing, or data on the wrong pin |
