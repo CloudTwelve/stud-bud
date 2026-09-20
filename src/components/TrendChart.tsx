@@ -100,7 +100,7 @@ export default function TrendChart({ points }: { points: HourlyPoint[] }) {
             aria-pressed={series.key === active.key}
             className={`clip-tag px-3 py-1.5 text-xs font-medium transition ${
               series.key === active.key
-                ? "bg-[var(--accent)] text-white"
+                ? "on-accent"
                 : "panel-sm hover:-translate-y-0.5 hover:border-line-strong"
             }`}
           >

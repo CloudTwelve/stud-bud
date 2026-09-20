@@ -231,7 +231,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
             type="button"
             onClick={send}
             disabled={sending || !complete}
-            className="clip-btn bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
+            className="clip-btn on-accent px-5 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
           >
             {sending ? "Sending…" : "Send reading"}
           </button>

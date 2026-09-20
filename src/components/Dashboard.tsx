@@ -169,7 +169,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                 aria-pressed={sort === option.key}
                 className={`clip-tag px-4 py-2 text-sm font-medium transition ${
                   sort === option.key
-                    ? "bg-[var(--accent)] text-white"
+                    ? "on-accent"
                     : "panel-sm hover:-translate-y-0.5 hover:border-line-strong"
                 }`}
               >

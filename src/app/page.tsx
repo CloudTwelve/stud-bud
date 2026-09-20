@@ -132,7 +132,7 @@ export default function HomePage() {
           <div className="pointer-events-auto flex flex-wrap items-center gap-3">
             <Link
               href="/rooms"
-              className="clip-btn flex items-center gap-2 bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+              className="clip-btn on-accent flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5"
             >
               See which room wins right now
               <ArrowIcon className="h-4 w-4" />
@@ -302,7 +302,7 @@ export default function HomePage() {
           </p>
           <Link
             href="/rooms"
-            className="clip-btn flex items-center gap-2 bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+            className="clip-btn on-accent flex items-center gap-2 px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5"
           >
             Open the live dashboard
             <ArrowIcon className="h-4 w-4" />

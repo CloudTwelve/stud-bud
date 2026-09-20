@@ -13,6 +13,8 @@
   --brand-soft: #5eead4;
   --accent: #ea580c;
   --accent-soft: #fdba74;
+  /* Text sitting on a solid accent fill; white on orange fails 4.5:1. */
+  --on-accent: #04211f;
   --grid-line: rgba(13, 148, 136, 0.12);
   --grid-glow-a: rgba(45, 212, 191, 0.3);
   --grid-glow-b: rgba(249, 115, 22, 0.2);
@@ -30,6 +32,7 @@
   --brand-soft: #0d9488;
   --accent: #fb923c;
   --accent-soft: #c2410c;
+  --on-accent: #04211f;
   --grid-line: rgba(94, 234, 212, 0.1);
   --grid-glow-a: rgba(13, 148, 136, 0.28);
   --grid-glow-b: rgba(234, 88, 12, 0.22);
@@ -47,6 +50,7 @@
   --color-brand-soft: var(--brand-soft);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
   --font-sans: var(--font-geist-sans);
   --font-display: var(--font-space-grotesk);
   --font-mono: var(--font-geist-mono);
@@ -154,6 +158,25 @@ h3 {
 
 .clip-tag {
   clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+}
+
+/* clip-path also clips the browser's focus ring, so draw it inside. */
+.clip-tag:focus-visible,
+.clip-btn:focus-visible,
+.panel-sm:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Solid accent fills: white text on orange fails contrast, and an accent
+   focus ring would be invisible against the fill. */
+.on-accent {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.on-accent:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--on-accent);
 }
 
 .clip-btn {
