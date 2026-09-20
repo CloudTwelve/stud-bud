@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const SPACE_ID = "sensor-test-bench";
@@ -47,6 +47,24 @@ type Result = {
   note?: string;
 };
 
+const subscribeToNothing = () => () => {};
+
+async function post(body: Record<string, unknown>, headers: Record<string, string>) {
+  const response = await fetch("/api/readings", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+  return { response, json };
+}
+
 const START: Values = {
   temperature: "21.4",
   humidity: "42",
@@ -59,6 +77,11 @@ export default function SensorTest() {
   const [token, setToken] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const origin = useSyncExternalStore(
+    subscribeToNothing,
+    () => window.location.origin,
+    () => "",
+  );
 
   const payload = {
     spaceId: SPACE_ID,
@@ -80,28 +103,19 @@ export default function SensorTest() {
 
     try {
       let body: Record<string, unknown> = { ...payload };
-      let response = await fetch("/api/readings", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-      let json = await response.json();
+      let { response, json } = await post(body, headers);
       let note: string | undefined;
 
       // A room the server has never seen has no occupancy to carry forward, so
       // the very first post has to name its seats once.
+      const errors = (json as { errors?: unknown })?.errors;
       const needsSeats =
         response.status === 400 &&
-        Array.isArray(json?.errors) &&
-        json.errors.some((error: unknown) => /seats/i.test(String(error)));
+        Array.isArray(errors) &&
+        errors.some((error: unknown) => /seats/i.test(String(error)));
       if (needsSeats) {
         body = { ...payload, occupiedSeats: 0, totalSeats: 1 };
-        response = await fetch("/api/readings", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        });
-        json = await response.json();
+        ({ response, json } = await post(body, headers));
         note =
           "First post for this room: the server had no seat count to keep, so the bench was created with 0/1 seats. Every later post is the four values only.";
       }
@@ -124,7 +138,7 @@ export default function SensorTest() {
       ? (result.response as { space?: { verdict?: { score: number; headline: string; summary: string } } }).space?.verdict
       : undefined;
 
-  const curl = `curl -X POST ${typeof window === "undefined" ? "" : window.location.origin}/api/readings \\
+  const curl = `curl -X POST ${origin}/api/readings \\
   -H 'content-type: application/json' \\${token.trim() ? `\n  -H 'authorization: Bearer ${token.trim()}' \\` : ""}
   -d '${JSON.stringify(payload)}'`;
 
