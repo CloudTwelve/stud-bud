@@ -72,6 +72,7 @@ function dailyCurve(hour: number): number {
 }
 
 export function seedIfEmpty(): void {
+  if (process.env.STUDBUD_NO_SEED === "1") return;
   const store = backend();
   if (!store.isEmpty()) return;
 

@@ -19,6 +19,11 @@ Other scripts: `npm run build`, `npm start`, `npm run lint`.
 | `STUDBUD_DB` | SQLite file path. Defaults to `.data/studbud.db`. |
 | `STUDBUD_MEMORY_STORE` | Set to `1` to skip SQLite and keep readings in memory. |
 | `STUDBUD_BASE_URL` | Public URL used for Open Graph / share metadata. |
+| `STUDBUD_NO_SEED` | Set to `1` to never generate the five demo rooms, so the dashboard shows only rooms real hardware has posted. |
+
+Going live with real hardware — what to switch off, in what order — is in
+[`docs/DEMO-DAY.md`](docs/DEMO-DAY.md), which also has a reading order for the
+codebase.
 
 ## How the score works
 
