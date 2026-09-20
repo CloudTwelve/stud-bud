@@ -3,9 +3,16 @@ interface SparklineProps {
   gradientId: string;
   from: string;
   to: string;
+  className?: string;
 }
 
-export default function Sparkline({ values, gradientId, from, to }: SparklineProps) {
+export default function Sparkline({
+  values,
+  gradientId,
+  from,
+  to,
+  className = "h-8 w-full",
+}: SparklineProps) {
   if (values.length < 2) return null;
 
   const min = Math.min(...values);
@@ -21,7 +28,7 @@ export default function Sparkline({ values, gradientId, from, to }: SparklinePro
     <svg
       viewBox="0 0 100 32"
       preserveAspectRatio="none"
-      className="h-8 w-full"
+      className={className}
       role="img"
       aria-label="Recent trend"
     >

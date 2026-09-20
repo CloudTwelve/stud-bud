@@ -13,6 +13,7 @@ import {
 } from "@/components/Icons";
 import LiveFeed from "@/components/LiveFeed";
 import Logo from "@/components/Logo";
+import LiteToggle from "@/components/LiteToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 import type { Space } from "@/lib/types";
 
@@ -187,6 +188,7 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
             <GridIcon className="h-4 w-4 text-brand" />
             Live rooms
           </Link>
+          <LiteToggle />
           <ThemeToggle />
         </div>
       </header>

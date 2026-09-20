@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useLiteMode } from "@/lib/motion";
 
 const CELL = 34;
 const POINTER_RADIUS = 170;
@@ -26,6 +27,7 @@ const ORANGE_HUE = 24;
  */
 export default function HeroGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lite = useLiteMode();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -33,7 +35,9 @@ export default function HeroGrid() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Low-WiFi mode draws the grid once and stops: same picture, no frames.
+    const reduced =
+      lite || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const pointer = { x: -9999, y: -9999, active: false };
     const ripples: Ripple[] = [];
     let width = 0;
@@ -118,7 +122,7 @@ export default function HeroGrid() {
         }
       }
 
-      frame = window.requestAnimationFrame(draw);
+      if (!lite) frame = window.requestAnimationFrame(draw);
     };
 
     // Listen on the window: the hero's text and buttons sit on top of the
@@ -146,7 +150,9 @@ export default function HeroGrid() {
     // requestAnimationFrame keeps firing for a canvas scrolled out of view, so
     // the loop only runs while the hero is actually on screen.
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
+      if (lite) {
+        if (entry.isIntersecting) draw(performance.now());
+      } else if (entry.isIntersecting) {
         if (!frame) frame = window.requestAnimationFrame(draw);
       } else if (frame) {
         window.cancelAnimationFrame(frame);
@@ -154,20 +160,38 @@ export default function HeroGrid() {
       }
     });
 
+    const onResize = () => {
+      resize();
+      if (lite) draw(performance.now());
+    };
+
+    // With no animation loop, a theme switch would leave last theme's colours
+    // painted on the canvas until something else forced a redraw.
+    const themeWatcher = lite
+      ? new MutationObserver(() => draw(performance.now()))
+      : null;
+    themeWatcher?.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
     resize();
     observer.observe(canvas);
-    window.addEventListener("resize", resize);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", onResize);
+    if (!lite) {
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerdown", onPointerDown);
+    }
 
     return () => {
       observer.disconnect();
+      themeWatcher?.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerdown", onPointerDown);
     };
-  }, []);
+  }, [lite]);
 
   return (
     <canvas

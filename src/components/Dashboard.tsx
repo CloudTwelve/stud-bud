@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useReorderAnimation } from "@/lib/motion";
 import {
   getServerWeights,
   getWeights,
@@ -18,8 +19,10 @@ import {
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
 import { ArrowIcon, BookIcon, DogIcon, SignalIcon } from "./Icons";
+import LiteToggle from "./LiteToggle";
 import Logo from "./Logo";
 import Preferences from "./Preferences";
+import Quip from "./Quip";
 import SpaceCard from "./SpaceCard";
 import ThemeToggle from "./ThemeToggle";
 
@@ -105,6 +108,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
   }, [scored, sort]);
 
   const best = sorted.find((space) => !space.stale) ?? null;
+  const cardRef = useReorderAnimation(sorted.map((space) => space.id));
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-8 sm:py-14">
@@ -138,6 +142,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
               <SignalIcon className="h-4 w-4 text-brand" />
               Test bench
             </Link>
+            <LiteToggle />
             <ThemeToggle />
           </div>
         </div>
@@ -229,10 +234,13 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
 
       <section className="grid gap-5 md:grid-cols-2 md:gap-6">
         {sorted.map((space) => (
-          <SpaceCard key={space.id} space={space} />
+          <SpaceCard key={space.id} space={space} ref={cardRef(space.id)} />
         ))}
         {sorted.length === 0 && (
-          <p className="opacity-60">Waiting for the first sensor sweep…</p>
+          <p className="opacity-60">
+            Waiting for the first sweep — the dog is probably tooling on
+            something else.
+          </p>
         )}
       </section>
 
@@ -258,6 +266,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
   "totalSeats": 60
 }`}
         </pre>
+        <Quip />
       </footer>
     </main>
   );

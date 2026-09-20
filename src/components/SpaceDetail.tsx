@@ -6,6 +6,7 @@ import type { HourlyPoint, ScoredSpace } from "@/lib/types";
 import { ArrowIcon } from "./Icons";
 import Logo from "./Logo";
 import SpaceCard, { timeAgo } from "./SpaceCard";
+import LiteToggle from "./LiteToggle";
 import ThemeToggle from "./ThemeToggle";
 import TrendChart from "./TrendChart";
 
@@ -62,7 +63,10 @@ export default function SpaceDetail({ initial }: { initial: DetailPayload }) {
             {space.building} · last sweep {timeAgo(space.latest.recordedAt)}
           </p>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <LiteToggle />
+          <ThemeToggle />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
