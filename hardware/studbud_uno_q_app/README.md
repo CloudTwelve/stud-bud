@@ -5,7 +5,7 @@ light on the UNO Q's microcontroller and posts a sweep to the Stud-Bud
 dashboard from the board's Linux side — no bridge laptop, no WiFi shield.
 
 ```
-sketch/sketch.ino   MCU (STM32U585): DHT22 + BH1750 + mic, one sample every 2 s
+sketch/sketch.ino   MCU (STM32U585): DHT22 + Modulino Light + mic, one sample every 2 s
 python/main.py      Linux (QRB2210): averages samples, POSTs /api/readings once a minute
 ```
 
@@ -18,43 +18,98 @@ The UNO Q headers are **3.3 V** and the analog pins are **not 5 V tolerant** —
 power every sensor from `3V3`, never from `5V`.
 
 ```
-DHT22   data -> D2      (10 kΩ between data and 3V3)
-        VCC  -> 3V3, GND -> GND
-BH1750  SDA  -> SDA, SCL -> SCL      (or just plug it into the Qwiic connector)
-        VCC  -> 3V3, GND -> GND, ADDR -> GND
-MAX4466 OUT  -> A0
-        VCC  -> 3V3, GND -> GND
+Modulino Light  Qwiic cable -> the board's Qwiic socket (no soldering, no pins)
+DHT22           data -> D2      (10 kΩ between data and 3V3)
+                VCC  -> 3V3, GND -> GND
+MAX4466         OUT  -> A0
+                VCC  -> 3V3, GND -> GND
 ```
 
-## Running it
+The Qwiic socket is the UNO Q's *second* I2C bus (`Wire1`, 3.3 V only). The
+Modulino library already knows that on this board, so `Modulino.begin()` needs
+no arguments. Modulinos daisy-chain: if you add a Modulino Thermo later you can
+plug it into the free Qwiic socket on the Light node and drop the DHT22.
 
-1. Copy this folder onto the board (or import it in App Lab: *Import App* →
-   pick the folder). The folder layout already matches the
-   [Arduino App specification](https://github.com/arduino/arduino-app-cli/blob/main/docs/app-specification.md).
-2. In App Lab, open the sketch and let it install the libraries listed in
-   `sketch/sketch.yaml` (`DHT sensor library`, `Adafruit Unified Sensor`,
-   `BH1750`). `Arduino_RouterBridge` ships with the core.
-3. Create `/home/arduino/studbud.json` on the board — this file is **not** part
-   of the app, so the token never ends up in git:
+The Light node is an LTR-381RGB behind a small microcontroller. `light.update()`
+fetches one measurement, then `light.getLux()` is the ambient level in lux
+(`getAL()` is the *raw* unscaled count and `getIR()` is infrared — this app only
+wants lux).
 
-   ```json
-   {
-     "url": "http://192.168.1.42:3000/api/readings",
-     "token": "the same value as STUDBUD_INGEST_TOKEN on the server",
-     "spaceId": "hayden-reading-room",
-     "name": "Hayden Reading Room",
-     "building": "Building 14"
-   }
-   ```
+## Flashing it, step by step
 
-   The address is the dashboard host's LAN IP, not `localhost` — `localhost`
-   from the board means the board. `STUDBUD_URL`, `STUDBUD_INGEST_TOKEN`,
-   `STUDBUD_SPACE_ID`, `STUDBUD_SPACE_NAME` and `STUDBUD_SPACE_BUILDING`
-   override the file if you prefer environment variables.
-4. Run the app. The App Lab console shows `post: 201` once a minute, and the
-   MCU monitor shows the raw `t= h= dB= lux=` line every two seconds.
+The UNO Q is two computers in one, so "flashing" here means *building the sketch
+for the microcontroller and starting the Python side next to it* — App Lab does
+both when you press Run. You never drag a `.hex` file anywhere.
+
+1. **Power the board.** USB-C from your laptop to the board's USB-C port. The
+   Linux side takes ~30 s to boot; the green LED settles when it is up.
+2. **Open App Lab.** Install [Arduino App Lab](https://www.arduino.cc/en/software)
+   on your laptop and open it. The board shows up in the top bar as *UNO Q*
+   once it has booted — if it doesn't, try the other USB-C cable (many cheap
+   cables are charge-only and carry no data).
+3. **Get this folder onto the board.** Either copy the whole
+   `studbud_uno_q_app` folder to the board over USB/SSH, or in App Lab choose
+   *Import App* and point it at the folder on your laptop. The layout already
+   matches the
+   [Arduino App specification](https://github.com/arduino/arduino-app-cli/blob/main/docs/app-specification.md),
+   so App Lab recognises it as an app rather than a loose sketch.
+4. **Let it install the libraries.** Open the sketch inside App Lab; it reads
+   `sketch/sketch.yaml` and offers to install `DHT sensor library`,
+   `Adafruit Unified Sensor` and `Arduino_Modulino`. Say yes. The first install
+   takes a minute or two. `Arduino_RouterBridge` already ships with the core.
+5. **Plug the sensors in** as in the wiring block above. Do this with the board
+   powered off if you're moving jumper wires; the Qwiic cable is safe to plug in
+   live.
+6. **Create `/home/arduino/studbud.json`** on the board (step below) so the
+   Python side knows where to POST.
+7. **Press Run.** App Lab compiles the sketch, loads it onto the STM32
+   microcontroller, and starts `python/main.py` on the Linux side. Expect
+   30–60 s the first time.
+8. **Watch two windows.** The MCU monitor prints `t= h= dB= lux=` every two
+   seconds — that tells you the sensors work. The Python console prints
+   `post: 201` once a minute — that tells you the network works. If the first
+   one is fine and the second isn't, the problem is the URL or the token, not
+   the wiring.
+
+Re-flashing after an edit is just pressing Run again; it replaces what's on the
+MCU. Nothing you do here can brick the board.
+
+## Configuration
+
+Create `/home/arduino/studbud.json` on the board — this file is **not** part of
+the app, so the token never ends up in git:
+
+```json
+{
+  "url": "http://192.168.1.42:3000/api/readings",
+  "token": "the same value as STUDBUD_INGEST_TOKEN on the server",
+  "spaceId": "hayden-reading-room",
+  "name": "Hayden Reading Room",
+  "building": "Building 14"
+}
+```
+
+The address is the dashboard host's LAN IP, not `localhost` — `localhost` from
+the board means the board itself. `STUDBUD_URL`, `STUDBUD_INGEST_TOKEN`,
+`STUDBUD_SPACE_ID`, `STUDBUD_SPACE_NAME` and `STUDBUD_SPACE_BUILDING` override
+the file if you prefer environment variables.
 
 One app per room: give each board its own `spaceId`.
+
+## When it doesn't work
+
+| Symptom | Where to look |
+| --- | --- |
+| Board never appears in App Lab | charge-only USB-C cable, or Linux still booting |
+| `Modulino Light not found` | Qwiic cable not seated, or plugged into a Modulino's *output* socket |
+| `lux=nan` forever | the node answered `begin()` but `update()` keeps failing — reseat the cable |
+| `t=nan h=nan` | DHT22 pull-up resistor missing, or data on the wrong pin |
+| dB barely moves | mic gain pot turned down, or `OUT` not on A0 |
+| Monitor fine, no `post:` | wrong URL/IP, server not running, or laptop firewall |
+| `post: 401` | the board's token and the server's `STUDBUD_INGEST_TOKEN` differ |
+
+You can always check the server half without any hardware: open `/test` on the
+dashboard and send four numbers by hand.
 
 ## Seat counts
 

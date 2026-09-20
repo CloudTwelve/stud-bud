@@ -36,7 +36,7 @@ const METRICS = [
     unit: "lux",
     ideal: "300–800 lux",
     why: "Too dim strains your eyes, too bright is glare on the laptop screen.",
-    sensor: "BH1750",
+    sensor: "Modulino Light",
   },
   {
     label: "Humidity",

@@ -12,9 +12,8 @@
 #include <Arduino.h>
 #include <Arduino_RouterBridge.h>
 
-#include <BH1750.h>
+#include <Arduino_Modulino.h>
 #include <DHT.h>
-#include <Wire.h>
 
 #define DHT_PIN 2
 #define DHT_TYPE DHT22
@@ -27,7 +26,7 @@ static const float SOUND_DB_AT_QUIET = 33.0f;
 static const float SOUND_DB_PER_COUNT = 0.32f;
 
 static DHT dht(DHT_PIN, DHT_TYPE);
-static BH1750 lightMeter;
+static ModulinoLight light;
 static bool lightReady = false;
 
 static float lastTemperature = NAN;
@@ -55,10 +54,13 @@ void setup() {
   Bridge.begin();
 
   dht.begin();
-  Wire.begin();
-  lightReady = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
+
+  // Modulino nodes hang off the Qwiic connector, which on the UNO Q is the
+  // second I2C bus - the library picks Wire1 for this board on its own.
+  Modulino.begin();
+  lightReady = light.begin();
   if (!lightReady) {
-    Monitor.println("BH1750 not found - check SDA/SCL and that ADDR sits at GND");
+    Monitor.println("Modulino Light not found - check the Qwiic cable");
   }
 }
 
@@ -68,9 +70,8 @@ void loop() {
   if (!isnan(temperature)) lastTemperature = temperature;
   if (!isnan(humidity)) lastHumidity = humidity;
 
-  if (lightReady) {
-    float lux = lightMeter.readLightLevel();
-    if (lux >= 0) lastLight = lux;
+  if (lightReady && light.update()) {
+    lastLight = (float)light.getLux();
   }
 
   float sound = readSoundDb();

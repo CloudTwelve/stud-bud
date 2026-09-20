@@ -33,7 +33,7 @@ const FIELDS = [
     label: "Light",
     unit: "lux",
     step: 10,
-    hint: "BH1750, lux. 300–800 scores full marks.",
+    hint: "Modulino Light, lux. 300–800 scores full marks.",
   },
 ] as const;
 
@@ -299,7 +299,8 @@ export default function SensorTest() {
         <ol className="mt-3 space-y-2 text-sm opacity-80">
           <li>
             <strong>1.</strong> Read the sensors — temperature and humidity over
-            the DHT22&apos;s one-wire protocol, lux from the BH1750 over I²C, and
+            the DHT22&apos;s one-wire protocol, lux from the Modulino Light over
+            I²C, and
             a one-second window of microphone samples reduced to a single peak.
           </li>
           <li>
