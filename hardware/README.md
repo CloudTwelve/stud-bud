@@ -8,14 +8,24 @@ POST /api/readings
 ```
 
 So the hardware job is: measure those six numbers in a room, and POST them
-every minute. `studbud_sensor_node/studbud_sensor_node.ino` does exactly that
-and compiles for the Arduino UNO R4 WiFi.
+every minute. There are two ready-made nodes here:
+
+| Board | Use |
+| --- | --- |
+| **Arduino UNO Q** | [`studbud_uno_q_app/`](studbud_uno_q_app/) — an App Lab app: sensors on the MCU, HTTP from the on-board Linux side |
+| Arduino UNO R4 WiFi / ESP32 / Nano 33 IoT | `studbud_sensor_node/studbud_sensor_node.ino` — single sketch, WiFi + HTTP on the MCU |
+
+If you have an UNO Q, read [`studbud_uno_q_app/README.md`](studbud_uno_q_app/README.md)
+for wiring and setup and treat the rest of this page as the sensor/calibration
+background. Two differences matter for the UNO Q: its headers are **3.3 V** and
+the analog pins are not 5 V tolerant (power sensors from `3V3`), and it needs no
+WiFi shield or bridge laptop because Debian runs on the board itself.
 
 ## Parts
 
 | What | Part | Why this one |
 | --- | --- | --- |
-| Board | **Arduino UNO R4 WiFi** (or ESP32 DevKit / Nano 33 IoT) | WiFi on board — a classic UNO cannot POST anything without an extra shield |
+| Board | **Arduino UNO Q**, or an UNO R4 WiFi / ESP32 DevKit / Nano 33 IoT | Something that can reach the network on its own — a classic UNO R3 cannot POST anything without a shield or a host laptop |
 | Temp + humidity | **DHT22** (AM2302) | ±0.5 °C / ±2 % RH, one data pin. DHT11 also works but is ±2 °C, too coarse for "is this room comfortable" |
 | Light | **BH1750** (GY-302, I2C) | Reports real **lux**, which is what the score bands use. A bare photoresistor only gives "brighter/darker" |
 | Sound | **MAX9814** or **MAX4466** mic amp (analog out) | Gives an audio envelope you can turn into dB. The cheap KY-038 with a pot is usable but drifts |
@@ -25,7 +35,7 @@ and compiles for the Arduino UNO R4 WiFi.
 Budget version: UNO R4 WiFi + DHT22 + BH1750 + MAX4466 is roughly $45 and is
 enough for a full demo.
 
-## Wiring
+## Wiring (UNO R4 / ESP32 — for the UNO Q see its own README)
 
 ```
 DHT22   data -> D2      (10 kΩ between data and 5V)
@@ -39,7 +49,7 @@ MAX4466 OUT  -> A0
 Use the analog (AO / envelope) pin of the sound module, not the digital one —
 the digital pin is just a threshold "loud/not loud" gate.
 
-## Flashing it
+## Flashing the WiFi-MCU sketch
 
 1. Install the [Arduino IDE 2](https://www.arduino.cc/en/software) and, in
    Boards Manager, the **Arduino UNO R4** core.
@@ -143,9 +153,12 @@ keeps every card live.
 2. **Each sensor's example sketch** — every library above ships one under
    *File → Examples*. Get each sensor printing plausible values on its own
    before combining them; debugging three sensors at once is misery.
-3. **WiFi + HTTP** — the *WiFiS3 → WiFiWebClient* example, then the
-   ArduinoHttpClient POST example. The concept to hold onto is that your board
-   is just another HTTP client, like curl.
+3. **Getting the reading onto the network** — on the UNO Q, the
+   [App Lab](https://docs.arduino.cc/software/app-lab/) Bridge model: the MCU
+   publishes values, Python on the Linux side does the HTTP. On a WiFi MCU
+   board, the *WiFiS3 → WiFiWebClient* example then the ArduinoHttpClient POST
+   example. Either way the concept to hold onto is that your board is just
+   another HTTP client, like curl.
 4. **I2C vs analog vs digital** — Adafruit's
    [I2C guide](https://learn.adafruit.com/working-with-i2c-devices) explains
    why BH1750 needs two shared wires while the mic needs its own analog pin.

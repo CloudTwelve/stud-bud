@@ -1,0 +1,5 @@
+name: Stud-Bud sensor node
+icon: "📚"
+description: Reads room temperature, humidity, noise and light on the MCU and posts a sweep to the Stud-Bud dashboard from Linux.
+ports: []
+bricks: []
