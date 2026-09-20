@@ -19,6 +19,9 @@ from arduino.app_utils import App, Bridge
 
 CONFIG_PATH = Path(os.environ.get("STUDBUD_CONFIG", "/home/arduino/studbud.json"))
 POST_INTERVAL = 60.0  # seconds
+# ~10 minutes of samples: enough to ride out a short outage without the buffer
+# growing forever while the server is down.
+MAX_SAMPLES = 300
 
 
 def load_config() -> dict:
@@ -59,9 +62,10 @@ def on_sample(temperature: float, humidity: float, sound: float, light: float) -
         print("skipping sample with a sensor that has not reported yet")
         return
     samples.append(values)
+    del samples[:-MAX_SAMPLES]
 
 
-def post(payload: dict) -> None:
+def post(payload: dict) -> bool:
     headers = {}
     if CONFIG["token"]:
         headers["Authorization"] = f"Bearer {CONFIG['token']}"
@@ -69,11 +73,12 @@ def post(payload: dict) -> None:
         response = requests.post(CONFIG["url"], json=payload, headers=headers, timeout=5)
     except requests.RequestException as error:
         print(f"post failed: {error}")
-        return
+        return False
     if response.status_code >= 400:
         print(f"post {response.status_code}: {response.text[:200]}")
-    else:
-        print(f"post {response.status_code} {payload['spaceId']}")
+        return False
+    print(f"post {response.status_code} {payload['spaceId']}")
+    return True
 
 
 def loop() -> None:
@@ -90,7 +95,6 @@ def loop() -> None:
         return
 
     batch = samples[:]
-    samples.clear()
     count = len(batch)
 
     payload = {
@@ -107,7 +111,10 @@ def loop() -> None:
         payload["totalSeats"] = CONFIG["totalSeats"]
         payload["occupiedSeats"] = CONFIG["occupiedSeats"]
 
-    post(payload)
+    # Only drop the samples the server actually took: a timeout should cost a
+    # minute of latency, not a minute of data.
+    if post(payload):
+        del samples[:count]
 
 
 Bridge.provide("sample", on_sample)
