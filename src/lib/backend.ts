@@ -32,10 +32,15 @@ export interface Backend {
    * stored text compares instants.
    */
   readingBefore(id: string, recordedAt: string): Promise<Reading | undefined>;
-  /** Readings strictly after `recordedAt`, oldest first. */
+  /**
+   * A page of readings after `(recordedAt, afterRowId)`, oldest first.
+   * Paging on the row id as well as the time keeps sweeps that share a
+   * timestamp from repeating or hiding each other.
+   */
   readingsAfter(
     id: string,
     recordedAt: string,
+    afterRowId: number,
     limit: number,
   ): Promise<StoredReading[]>;
   hourly(id: string, hours: number): Promise<HourlyPoint[]>;
@@ -302,14 +307,16 @@ function sqliteBackend(): Backend | null {
           .get(id, recordedAt) as unknown as ReadingRow | undefined;
         return row ? toReading(row) : undefined;
       },
-      readingsAfter: async (id, recordedAt, limit) =>
+      readingsAfter: async (id, recordedAt, afterRowId, limit) =>
         (
           db
             .prepare(
-              `SELECT * FROM readings WHERE space_id = ? AND recorded_at > ?
+              `SELECT * FROM readings WHERE space_id = ?
+                 AND (recorded_at > ? OR (recorded_at = ? AND id > ?))
                ORDER BY recorded_at ASC, id ASC LIMIT ?`,
             )
-            .all(id, recordedAt, limit) as unknown as ReadingRow[]
+            .all(id, recordedAt, recordedAt, afterRowId, limit) as unknown as
+            ReadingRow[]
         ).map(toStored),
       hourly: async (id, hours) => {
         const since = new Date(
@@ -499,12 +506,13 @@ async function postgresBackend(url: string): Promise<Backend | null> {
         );
         return rows[0] ? toReading(rows[0]) : undefined;
       },
-      readingsAfter: async (id, recordedAt, limit) =>
+      readingsAfter: async (id, recordedAt, afterRowId, limit) =>
         (
           await query<ReadingRow>(
-            `SELECT * FROM readings WHERE space_id = $1 AND recorded_at > $2
-             ORDER BY recorded_at ASC, id ASC LIMIT $3`,
-            [id, recordedAt, limit],
+            `SELECT * FROM readings WHERE space_id = $1
+               AND (recorded_at > $2 OR (recorded_at = $2 AND id > $3))
+             ORDER BY recorded_at ASC, id ASC LIMIT $4`,
+            [id, recordedAt, afterRowId, limit],
           )
         ).map(toStored),
       hourly: async (id, hours) => {
@@ -695,9 +703,13 @@ function memoryBackend(): Backend {
       (readings.get(id) ?? [])
         .filter((reading) => reading.recordedAt <= recordedAt)
         .pop(),
-    readingsAfter: async (id, recordedAt, limit) =>
+    readingsAfter: async (id, recordedAt, afterRowId, limit) =>
       (readings.get(id) ?? [])
-        .filter((reading) => reading.recordedAt > recordedAt)
+        .filter(
+          (reading) =>
+            reading.recordedAt > recordedAt ||
+            (reading.recordedAt === recordedAt && reading.id > afterRowId),
+        )
         .slice(0, limit),
     hourly: async (id, hours) => {
       const since = Date.now() - hours * 60 * 60 * 1000;

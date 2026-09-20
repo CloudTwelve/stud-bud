@@ -7,8 +7,8 @@ import type { HourlyPoint, Metric, Reading, Space } from "./types";
 
 const HISTORY_POINTS = 48;
 
-/** How far forward a backdated sweep is allowed to repair. */
-const REWRITE_LIMIT = 500;
+/** Rows a backdated sweep reads at a time while repairing forward. */
+const REPAIR_PAGE = 200;
 
 export { STALE_AFTER_MINUTES, isMetricStale, isStale } from "./freshness";
 
@@ -155,37 +155,49 @@ async function repairCarriedAfter(
   inserted: Reading,
 ): Promise<void> {
   const pending = new Set(METRICS);
-  const later = await store.readingsAfter(
-    inserted.spaceId,
-    inserted.recordedAt,
-    REWRITE_LIMIT,
-  );
+  // A sensor can go quiet for hours, so the run of rows inheriting its value
+  // is unbounded; page until every metric has been measured again or the
+  // room's history runs out.
+  let cursorAt = inserted.recordedAt;
+  let cursorId = Number.MAX_SAFE_INTEGER;
 
-  for (const row of later) {
-    if (pending.size === 0) return;
-    const own = measuredHere(row);
-    const repaired: Reading = { ...row, measuredAt: { ...row.measuredAt } };
-    let changed = false;
+  while (pending.size > 0) {
+    const page = await store.readingsAfter(
+      inserted.spaceId,
+      cursorAt,
+      cursorId,
+      REPAIR_PAGE,
+    );
+    if (page.length === 0) return;
 
-    for (const metric of pending) {
-      if (own.has(metric)) {
-        pending.delete(metric);
-        continue;
-      }
-      for (const field of METRIC_FIELDS[metric]) {
-        if (repaired[field] !== inserted[field]) {
-          repaired[field] = inserted[field];
+    for (const row of page) {
+      if (pending.size === 0) return;
+      const own = measuredHere(row);
+      const repaired: Reading = { ...row, measuredAt: { ...row.measuredAt } };
+      let changed = false;
+
+      for (const metric of pending) {
+        if (own.has(metric)) {
+          pending.delete(metric);
+          continue;
+        }
+        for (const field of METRIC_FIELDS[metric]) {
+          if (repaired[field] !== inserted[field]) {
+            repaired[field] = inserted[field];
+            changed = true;
+          }
+        }
+        const at = inserted.measuredAt?.[metric] ?? inserted.recordedAt;
+        if (repaired.measuredAt?.[metric] !== at) {
+          repaired.measuredAt = { ...repaired.measuredAt, [metric]: at };
           changed = true;
         }
       }
-      const at = inserted.measuredAt?.[metric] ?? inserted.recordedAt;
-      if (repaired.measuredAt?.[metric] !== at) {
-        repaired.measuredAt = { ...repaired.measuredAt, [metric]: at };
-        changed = true;
-      }
-    }
 
-    if (changed) await store.updateReading(row.id, repaired);
+      if (changed) await store.updateReading(row.id, repaired);
+      cursorAt = row.recordedAt;
+      cursorId = row.id;
+    }
   }
 }
 
