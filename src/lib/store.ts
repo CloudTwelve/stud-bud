@@ -70,14 +70,30 @@ export interface IngestPayload {
   humidity: number;
   sound: number;
   light: number;
-  occupiedSeats: number;
-  totalSeats: number;
+  /** Omit both seat fields to keep the room's last known occupancy. */
+  occupiedSeats?: number;
+  totalSeats?: number;
   recordedAt?: string;
+}
+
+export class MissingSeatCountsError extends Error {
+  constructor(spaceId: string) {
+    super(
+      `"occupiedSeats" and "totalSeats" are required for new space ${spaceId}`,
+    );
+  }
 }
 
 export function recordReading(payload: IngestPayload): Space {
   seedIfEmpty();
   const store = backend();
+
+  const previous = store.history(payload.spaceId, 1)[0];
+  const occupiedSeats = payload.occupiedSeats ?? previous?.occupiedSeats;
+  const totalSeats = payload.totalSeats ?? previous?.totalSeats;
+  if (occupiedSeats === undefined || totalSeats === undefined) {
+    throw new MissingSeatCountsError(payload.spaceId);
+  }
 
   store.insertSpace({
     id: payload.spaceId,
@@ -94,8 +110,8 @@ export function recordReading(payload: IngestPayload): Space {
     humidity: payload.humidity,
     sound: payload.sound,
     light: payload.light,
-    occupiedSeats: payload.occupiedSeats,
-    totalSeats: payload.totalSeats,
+    occupiedSeats,
+    totalSeats,
     recordedAt: payload.recordedAt ?? new Date().toISOString(),
   });
 

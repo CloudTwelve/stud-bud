@@ -32,11 +32,19 @@
 static const char SPACE_ID[] = "hayden-reading-room";
 static const char SPACE_NAME[] = "Hayden Reading Room";
 static const char SPACE_BUILDING[] = "Building 14";
+// Occupancy: set HAS_SEAT_SENSOR to 1 and fill in readOccupiedSeats() if this
+// node counts seats. With it at 0 the sweep omits both seat fields and the
+// server keeps the last count the robot dog reported, instead of overwriting
+// it with a made-up zero every minute.
+#define HAS_SEAT_SENSOR 0
+
+#if HAS_SEAT_SENSOR
 static const int TOTAL_SEATS = 60;
 
-// Occupancy: this node has no seat sensor, so it reports what the robot dog
-// last told it. Leave at -1 to send the previous value the server already has.
-static int occupiedSeats = 0;
+static int readOccupiedSeats() {
+  return 0;  // TODO: read your doorway counter / per-table sensors here
+}
+#endif
 
 // ---- pins and timing --------------------------------------------------------
 static const uint8_t DHT_PIN = 2;
@@ -80,8 +88,8 @@ static void connectWiFi() {
   Serial.println(WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  unsigned long deadline = millis() + 20000UL;
-  while (WiFi.status() != WL_CONNECTED && millis() < deadline) {
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000UL) {
     delay(500);
     Serial.print('.');
   }
@@ -107,8 +115,10 @@ static void postSweep(float temperature, float humidity, float sound, float ligh
   doc["humidity"] = round(humidity * 10) / 10.0;
   doc["sound"] = round(sound * 10) / 10.0;
   doc["light"] = (int)light;
-  doc["occupiedSeats"] = occupiedSeats;
+#if HAS_SEAT_SENSOR
+  doc["occupiedSeats"] = readOccupiedSeats();
   doc["totalSeats"] = TOTAL_SEATS;
+#endif
 
   String body;
   serializeJson(doc, body);
