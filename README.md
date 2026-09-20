@@ -50,7 +50,9 @@ readings are current.
 
 ## Sending data from the hardware
 
-The Arduino / robot dog posts one JSON payload per sweep:
+Parts list, wiring, calibration and a ready-to-flash sketch live in
+[`hardware/`](hardware/README.md). The Arduino / robot dog posts one JSON
+payload per sweep:
 
 ```bash
 curl -X POST http://localhost:3000/api/readings \
