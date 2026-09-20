@@ -67,14 +67,24 @@ const DURATION = 650;
 
 /**
  * Eases a displayed number towards a new one so a score change is watchable.
- * `shown` is null whenever nothing is in flight, so the target is the single
- * source of truth at rest — a leftover value can't resurface when motion is
- * switched back on after a score changed with the animation disabled.
+ *
+ * `shown` is always what is on screen, so a new target renders as the old
+ * value and is then tweened to — rendering the target first and animating
+ * afterwards would flash the final number and run the tween backwards.
+ * While motion is off it is synced to the target during render (React's
+ * adjust-state-on-prop-change pattern) rather than in an effect, so no stale
+ * mid-tween value can resurface when motion is switched back on.
  */
 export function useAnimatedNumber(target: number): number {
   const still = useStill();
-  const [shown, setShown] = useState<number | null>(null);
+  const [shown, setShown] = useState(target);
+  const [tracked, setTracked] = useState({ target, still });
   const from = useRef(target);
+
+  if (tracked.target !== target || tracked.still !== still) {
+    setTracked({ target, still });
+    if (still) setShown(target);
+  }
 
   useEffect(() => {
     if (still) {
@@ -82,24 +92,21 @@ export function useAnimatedNumber(target: number): number {
       return;
     }
     const origin = from.current;
-    if (origin === target) {
-      const settle = requestAnimationFrame(() => setShown(null));
-      return () => cancelAnimationFrame(settle);
-    }
+    if (origin === target) return;
 
     const start = performance.now();
     let frame = requestAnimationFrame(function step(now) {
       const progress = Math.min(1, (now - start) / DURATION);
       const eased = 1 - (1 - progress) ** 3;
-      const value = origin + (target - origin) * eased;
-      from.current = progress < 1 ? value : target;
-      setShown(progress < 1 ? value : null);
+      const value = progress < 1 ? origin + (target - origin) * eased : target;
+      from.current = value;
+      setShown(value);
       if (progress < 1) frame = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(frame);
   }, [target, still]);
 
-  return still ? target : (shown ?? target);
+  return shown;
 }
 
 /**

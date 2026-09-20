@@ -228,13 +228,34 @@ h3 {
 }
 
 /* A card flashes its edge once when a sweep for that room lands, so the page
-   only moves when the building does. */
-.landed-a,
-.landed-b {
-  animation: landed 1200ms ease-out;
+   only moves when the building does.
+   Two identical animations, alternated per sweep: a browser restarts an
+   animation when the computed animation-name changes, so swapping between
+   classes that resolve to the same name would not restart anything. */
+.landed-a {
+  animation: landed-a 1200ms ease-out;
 }
 
-@keyframes landed {
+.landed-b {
+  animation: landed-b 1200ms ease-out;
+}
+
+@keyframes landed-a {
+  0% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  40% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+}
+
+@keyframes landed-b {
   0% {
     border-color: var(--accent);
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
