@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { ingestAuthorized } from "@/lib/auth";
 import { evaluate } from "@/lib/score";
-import { MissingSeatCountsError, listSpaces, recordReading } from "@/lib/store";
+import {
+  MissingEnvironmentError,
+  MissingSeatCountsError,
+  listSpaces,
+  recordReading,
+} from "@/lib/store";
 import { parseIngest } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +43,10 @@ export async function POST(request: Request) {
   try {
     space = recordReading(parsed.payload);
   } catch (error) {
-    if (error instanceof MissingSeatCountsError) {
+    if (
+      error instanceof MissingSeatCountsError ||
+      error instanceof MissingEnvironmentError
+    ) {
       return NextResponse.json({ errors: [error.message] }, { status: 400 });
     }
     throw error;

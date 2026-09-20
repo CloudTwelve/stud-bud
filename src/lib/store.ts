@@ -66,10 +66,11 @@ export interface IngestPayload {
   spaceId: string;
   name?: string;
   building?: string;
-  temperature: number;
-  humidity: number;
-  sound: number;
-  light: number;
+  /** Omit any environment metric to keep the room's last known value. */
+  temperature?: number;
+  humidity?: number;
+  sound?: number;
+  light?: number;
   /** Omit both seat fields to keep the room's last known occupancy. */
   occupiedSeats?: number;
   totalSeats?: number;
@@ -84,6 +85,12 @@ export class MissingSeatCountsError extends Error {
   }
 }
 
+export class MissingEnvironmentError extends Error {
+  constructor(spaceId: string, missing: string[]) {
+    super(`${missing.join(", ")} required for new space ${spaceId}`);
+  }
+}
+
 export function recordReading(payload: IngestPayload): Space {
   seedIfEmpty();
   const store = backend();
@@ -93,6 +100,22 @@ export function recordReading(payload: IngestPayload): Space {
   const totalSeats = payload.totalSeats ?? previous?.totalSeats;
   if (occupiedSeats === undefined || totalSeats === undefined) {
     throw new MissingSeatCountsError(payload.spaceId);
+  }
+
+  const temperature = payload.temperature ?? previous?.temperature;
+  const humidity = payload.humidity ?? previous?.humidity;
+  const sound = payload.sound ?? previous?.sound;
+  const light = payload.light ?? previous?.light;
+  const missing = Object.entries({ temperature, humidity, sound, light })
+    .filter(([, value]) => value === undefined)
+    .map(([key]) => `"${key}"`);
+  if (
+    temperature === undefined ||
+    humidity === undefined ||
+    sound === undefined ||
+    light === undefined
+  ) {
+    throw new MissingEnvironmentError(payload.spaceId, missing);
   }
 
   store.insertSpace({
@@ -106,10 +129,10 @@ export function recordReading(payload: IngestPayload): Space {
 
   store.insertReading({
     spaceId: payload.spaceId,
-    temperature: payload.temperature,
-    humidity: payload.humidity,
-    sound: payload.sound,
-    light: payload.light,
+    temperature,
+    humidity,
+    sound,
+    light,
     occupiedSeats,
     totalSeats,
     recordedAt: payload.recordedAt ?? new Date().toISOString(),
