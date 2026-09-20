@@ -78,7 +78,7 @@ def post(payload: dict) -> bool:
         return False
     if response.status_code >= 400:
         print(f"post {response.status_code}: {response.text[:200]}")
-        if response.status_code == 400 and "occupiedSeats" in response.text:
+        if response.status_code == 400 and "are required for new space" in response.text:
             print(
                 f"  -> {CONFIG['spaceId']} does not exist on the server yet, and this"
                 " node does not count seats. Have the robot dog post once, or add"
