@@ -14,6 +14,7 @@ import {
   SoundIcon,
   ThermometerIcon,
 } from "@/components/Icons";
+import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
@@ -96,16 +97,19 @@ export default function HomePage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--background)]" />
 
         <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-20 sm:px-8 sm:py-28">
-          <div className="pointer-events-auto flex items-center justify-between">
-            <Link
-              href="/rooms"
-              className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
-            >
-              <GridIcon className="h-4 w-4 text-brand" />
-              Live rooms
-              <ArrowIcon className="h-4 w-4 text-accent" />
-            </Link>
-            <ThemeToggle />
+          <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3">
+            <Logo className="h-7 sm:h-9" />
+            <div className="flex items-center gap-2">
+              <Link
+                href="/rooms"
+                className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
+              >
+                <GridIcon className="h-4 w-4 text-brand" />
+                Live rooms
+                <ArrowIcon className="h-4 w-4 text-accent" />
+              </Link>
+              <ThemeToggle />
+            </div>
           </div>
 
           <div className="pointer-events-none max-w-3xl">

@@ -12,6 +12,7 @@ import {
   ThermometerIcon,
 } from "@/components/Icons";
 import LiveFeed from "@/components/LiveFeed";
+import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import type { Space } from "@/lib/types";
 
@@ -161,7 +162,10 @@ export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-14">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="eyebrow">
+          <Link href="/" className="inline-flex" aria-label="Stud-Bud home">
+            <Logo className="h-6" />
+          </Link>
+          <p className="eyebrow mt-3">
             <BoltIcon className="h-4 w-4" />
             Ingest playground
           </p>
