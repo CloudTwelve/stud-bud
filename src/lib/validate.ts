@@ -40,6 +40,15 @@ function optionalNum(
     : num(body, key, errors);
 }
 
+const MEASUREMENTS = [
+  "temperature",
+  "humidity",
+  "sound",
+  "light",
+  "occupiedSeats",
+  "totalSeats",
+] as const;
+
 function str(body: Unknown, key: string): string | undefined {
   const raw = body[key];
   return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : undefined;
@@ -61,30 +70,27 @@ export function parseIngest(
     spaceId: spaceId ?? "",
     name: str(input, "name"),
     building: str(input, "building"),
-    temperature: num(input, "temperature", errors),
-    humidity: num(input, "humidity", errors),
-    sound: num(input, "sound", errors),
-    light: num(input, "light", errors),
+    temperature: optionalNum(input, "temperature", errors),
+    humidity: optionalNum(input, "humidity", errors),
+    sound: optionalNum(input, "sound", errors),
+    light: optionalNum(input, "light", errors),
     occupiedSeats: optionalNum(input, "occupiedSeats", errors),
     totalSeats: optionalNum(input, "totalSeats", errors),
     recordedAt: str(input, "recordedAt"),
   };
 
-  const { occupiedSeats, totalSeats } = payload;
-  if ((occupiedSeats === undefined) !== (totalSeats === undefined)) {
-    errors.push('send "occupiedSeats" and "totalSeats" together, or neither');
+  // A sweep that measures nothing would still stamp the room as freshly seen,
+  // which is how a dead sensor stays off the stale list.
+  if (MEASUREMENTS.every((key) => payload[key] === undefined)) {
+    errors.push(`send at least one of: ${MEASUREMENTS.join(", ")}`);
   }
-  if (
-    occupiedSeats !== undefined &&
-    totalSeats !== undefined &&
-    errors.length === 0
-  ) {
-    if (totalSeats < 0 || occupiedSeats < 0) {
-      errors.push("seat counts must be non-negative");
-    }
-    if (occupiedSeats > totalSeats) {
-      errors.push('"occupiedSeats" cannot exceed "totalSeats"');
-    }
+
+  // occupiedSeats alone is the dog's normal sweep: capacity does not change,
+  // so it carries forward. Comparing the two is left to the store, which is
+  // the only place that knows the carried-forward pair.
+  const { occupiedSeats, totalSeats } = payload;
+  if ((occupiedSeats ?? 0) < 0 || (totalSeats ?? 0) < 0) {
+    errors.push("seat counts must be non-negative");
   }
   if (payload.recordedAt && Number.isNaN(Date.parse(payload.recordedAt))) {
     errors.push('"recordedAt" must be an ISO 8601 timestamp');

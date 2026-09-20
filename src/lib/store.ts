@@ -69,24 +69,50 @@ export function bestHour(
   return { hour: new Date(best.hour).getHours(), sound: best.sound };
 }
 
+/**
+ * Every measurement is optional: a room is watched by more than one device
+ * (the board has the sensors, the dog counts seats) and they report on their
+ * own schedules. Whatever a sweep omits is carried forward from the room's
+ * last reading, so a partial post updates what it knows without erasing the
+ * rest.
+ */
 export interface IngestPayload {
   spaceId: string;
   name?: string;
   building?: string;
-  temperature: number;
-  humidity: number;
-  sound: number;
-  light: number;
-  /** Omit both seat fields to keep the room's last known occupancy. */
+  temperature?: number;
+  humidity?: number;
+  sound?: number;
+  light?: number;
   occupiedSeats?: number;
   totalSeats?: number;
   recordedAt?: string;
 }
 
-export class MissingSeatCountsError extends Error {
-  constructor(spaceId: string) {
+type CarriedField =
+  | "temperature"
+  | "humidity"
+  | "sound"
+  | "light"
+  | "occupiedSeats"
+  | "totalSeats";
+
+/** A room with no history has nothing to carry forward, so the first sweep
+ *  for it has to be complete. */
+export class IncompleteFirstReadingError extends Error {
+  constructor(spaceId: string, fields: CarriedField[]) {
     super(
-      `"occupiedSeats" and "totalSeats" are required for new space ${spaceId}`,
+      `the first reading for a new space (${spaceId}) must include every` +
+        ` field; missing: ${fields.join(", ")}`,
+    );
+  }
+}
+
+export class SeatCountError extends Error {
+  constructor(occupiedSeats: number, totalSeats: number) {
+    super(
+      `"occupiedSeats" (${occupiedSeats}) cannot exceed "totalSeats"` +
+        ` (${totalSeats})`,
     );
   }
 }
@@ -96,10 +122,28 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
   const store = await backend();
 
   const previous = (await store.history(payload.spaceId, 1))[0];
-  const occupiedSeats = payload.occupiedSeats ?? previous?.occupiedSeats;
-  const totalSeats = payload.totalSeats ?? previous?.totalSeats;
-  if (occupiedSeats === undefined || totalSeats === undefined) {
-    throw new MissingSeatCountsError(payload.spaceId);
+  const missing: CarriedField[] = [];
+  const carry = (field: CarriedField): number => {
+    const value = payload[field] ?? previous?.[field];
+    if (value === undefined) {
+      missing.push(field);
+      return 0;
+    }
+    return value;
+  };
+  const carried = {
+    temperature: carry("temperature"),
+    humidity: carry("humidity"),
+    sound: carry("sound"),
+    light: carry("light"),
+    occupiedSeats: carry("occupiedSeats"),
+    totalSeats: carry("totalSeats"),
+  };
+  if (missing.length > 0) {
+    throw new IncompleteFirstReadingError(payload.spaceId, missing);
+  }
+  if (carried.occupiedSeats > carried.totalSeats) {
+    throw new SeatCountError(carried.occupiedSeats, carried.totalSeats);
   }
 
   await store.insertSpace({
@@ -113,12 +157,7 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
 
   await store.insertReading({
     spaceId: payload.spaceId,
-    temperature: payload.temperature,
-    humidity: payload.humidity,
-    sound: payload.sound,
-    light: payload.light,
-    occupiedSeats,
-    totalSeats,
+    ...carried,
     recordedAt: payload.recordedAt ?? new Date().toISOString(),
   });
 

@@ -94,17 +94,21 @@ curl -X POST http://localhost:3000/api/readings \
 | Field | Unit | Required |
 | --- | --- | --- |
 | `spaceId` | stable id for the room | yes |
-| `temperature` | °C | yes |
-| `humidity` | % RH | yes |
-| `sound` | dB | yes |
-| `light` | lux | yes |
-| `occupiedSeats` / `totalSeats` | seats | yes for a room's first sweep |
+| `temperature` | °C | only in a room's first sweep |
+| `humidity` | % RH | only in a room's first sweep |
+| `sound` | dB | only in a room's first sweep |
+| `light` | lux | only in a room's first sweep |
+| `occupiedSeats` / `totalSeats` | seats | only in a room's first sweep |
 | `name`, `building` | labels for a new room | no |
 | `recordedAt` | ISO 8601, defaults to now | no |
 
-Send the two seat fields together or leave both out. A sweep without them
-keeps the room's last known occupancy, so an environment-only node (no seat
-sensor) does not wipe the count the robot dog measured on its last patrol.
+Every measurement is optional (send at least one): whatever a sweep omits is
+carried forward from the room's last reading. That is what lets two machines
+report on the same room without stepping on each other — an Arduino that knows
+nothing about seats posts its four sensors, a robot dog that knows nothing
+about temperature posts its seat counts, and neither wipes the other's numbers.
+A room the server has never seen has nothing to carry forward, so the sweep
+that creates it must carry all six.
 
 Readings are stored in SQLite (`.data/studbud.db` by default, created and
 seeded with demo rooms on first boot), so history survives restarts. The

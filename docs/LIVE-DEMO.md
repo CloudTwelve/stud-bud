@@ -103,11 +103,13 @@ editor in App Lab itself):
 }
 ```
 
-Those two seat numbers matter for the **first** post only. The server keeps a
-room's last known seat count when a sweep omits seats, but a room it has never
-seen has nothing to keep, so an environmental-only POST that creates a room is
-rejected with `400` naming `occupiedSeats`. Whichever of the two devices posts
-first has to carry seats. So either:
+Those two seat numbers matter for the **first** post only. Every measured field
+is optional: whatever a sweep leaves out is carried forward from the room's
+last reading, so the board can post sensors only and the dog can post seats
+only. A room the server has never seen has nothing to carry forward, so the
+post that *creates* a room must include all six fields or it is rejected with
+`400` listing what's missing. Whichever device posts first has to carry seats.
+So either:
 
 - put the lounge's real capacity in `studbud.json` as above (and let the dog
   correct the occupied count from its first sweep onward), or
@@ -140,37 +142,22 @@ battery and the demo WiFi.
 
 ## 3. Unitree Go2 — seats
 
-The dog owns `occupiedSeats` / `totalSeats` for the same `spaceId`. One
-important constraint today: **ingest requires the four environmental fields**,
-so a seats-only POST is rejected. Two ways around it, pick either:
-
-**a) Echo the current values back** (no code changes from me). Read the room,
-then post seats alongside what's already there:
+The dog owns `occupiedSeats` / `totalSeats` for the same `spaceId`, and once
+the room exists it can post those and nothing else:
 
 ```bash
-ROOM=http://<laptop-ip>:3000/api/spaces/stud-5-lounge
-curl -s $ROOM | python3 -c '
-import json,sys
-r = json.load(sys.stdin)["space"]["latest"]
-print(json.dumps({
-  "spaceId": "stud-5-lounge",
-  "temperature": r["temperature"], "humidity": r["humidity"],
-  "sound": r["sound"], "light": r["light"],
-  "occupiedSeats": 6, "totalSeats": 18,
-}))' | curl -s -X POST http://<laptop-ip>:3000/api/readings \
-  -H 'content-type: application/json' --data-binary @-
+curl -s -X POST http://<laptop-ip>:3000/api/readings \
+  -H 'content-type: application/json' \
+  -d '{"spaceId": "stud-5-lounge", "occupiedSeats": 6, "totalSeats": 18}'
 ```
 
 Swap `6` for whatever your seat detection counts, and run it on each sweep.
+Capacity carries forward too, so `{"spaceId": ..., "occupiedSeats": 6}` alone
+works just as well after the first post.
 
-**b) Tell me and I'll make the environmental fields optional** with
-carry-forward, exactly like the seat fields already work (~20 lines). Then the
-dog posts `{spaceId, occupiedSeats, totalSeats}` and nothing else.
-
-If the dog posts before the board, include the environmental fields from its
-own first sweep or hardcode nothing — post the board's numbers once by hand
-instead. Either way the room exists after one successful POST and both devices
-can then omit whatever they don't measure.
+If the dog posts *first*, before the room exists, that sweep has to carry the
+environmental fields as well — post the board's numbers once by hand instead.
+After one successful POST either device can omit whatever it doesn't measure.
 
 ## 4. Checks and fallbacks
 
@@ -181,9 +168,10 @@ curl -s http://localhost:3000/api/readings | python3 -m json.tool | head -40
 
 - **Room appears on the wrong tab** → the `spaceId` isn't `stud-5-lounge`.
 - **`401`** → server has a token, your POST doesn't (or they differ).
-- **`400` naming `occupiedSeats`** → the room doesn't exist yet and the post
-  carried no seats; see the seat note in step 2.
-- **`400`** otherwise → a field is missing or not a number; the body says which.
+- **`400` saying `must include every field`** → the room doesn't exist yet, so
+  there is nothing to carry forward; see the seat note in step 2.
+- **`400`** otherwise → a field isn't a number, or is outside what a real room
+  can be; the body says which.
 - **Tab says "Stale"** → nothing has posted for a while; the numbers are kept
   but explicitly distrusted rather than shown as current.
 - **Hardware dies mid-demo** → the Cards and Map tabs are unaffected; they're
