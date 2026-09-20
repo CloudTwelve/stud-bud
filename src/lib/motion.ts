@@ -65,10 +65,15 @@ export function useStill(): boolean {
 
 const DURATION = 650;
 
-/** Eases a displayed number towards a new one so a score change is watchable. */
+/**
+ * Eases a displayed number towards a new one so a score change is watchable.
+ * `shown` is null whenever nothing is in flight, so the target is the single
+ * source of truth at rest — a leftover value can't resurface when motion is
+ * switched back on after a score changed with the animation disabled.
+ */
 export function useAnimatedNumber(target: number): number {
   const still = useStill();
-  const [shown, setShown] = useState(target);
+  const [shown, setShown] = useState<number | null>(null);
   const from = useRef(target);
 
   useEffect(() => {
@@ -76,22 +81,25 @@ export function useAnimatedNumber(target: number): number {
       from.current = target;
       return;
     }
-    const start = performance.now();
     const origin = from.current;
-    if (origin === target) return;
+    if (origin === target) {
+      const settle = requestAnimationFrame(() => setShown(null));
+      return () => cancelAnimationFrame(settle);
+    }
 
+    const start = performance.now();
     let frame = requestAnimationFrame(function step(now) {
       const progress = Math.min(1, (now - start) / DURATION);
       const eased = 1 - (1 - progress) ** 3;
       const value = origin + (target - origin) * eased;
-      from.current = value;
-      setShown(value);
+      from.current = progress < 1 ? value : target;
+      setShown(progress < 1 ? value : null);
       if (progress < 1) frame = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(frame);
   }, [target, still]);
 
-  return still ? target : shown;
+  return still ? target : (shown ?? target);
 }
 
 /**

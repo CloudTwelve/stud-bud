@@ -44,20 +44,23 @@ export function timeAgo(iso: string): string {
   return `${hours} h ago`;
 }
 
-/** True for about a second after this room reports a sweep it hadn't before. */
-function useJustLanded(recordedAt: string): boolean {
-  const [landed, setLanded] = useState(false);
+/**
+ * Alternates between two classes running the same keyframes, because a second
+ * sweep arriving mid-flash would leave the class untouched and CSS would not
+ * restart the animation. Swapping the class name always restarts it.
+ */
+function useLandedClass(recordedAt: string): string {
+  const [sweeps, setSweeps] = useState(0);
   const previous = useRef(recordedAt);
 
   useEffect(() => {
     if (previous.current === recordedAt) return;
     previous.current = recordedAt;
-    setLanded(true);
-    const timer = setTimeout(() => setLanded(false), 1200);
-    return () => clearTimeout(timer);
+    setSweeps((count) => count + 1);
   }, [recordedAt]);
 
-  return landed;
+  if (sweeps === 0) return "";
+  return sweeps % 2 === 0 ? "landed-a" : "landed-b";
 }
 
 export default function SpaceCard({
@@ -70,7 +73,7 @@ export default function SpaceCard({
   const tone = scoreTone(space.verdict.score);
   const free = Math.max(0, space.latest.totalSeats - space.latest.occupiedSeats);
   const soundHistory = space.history.map((reading) => reading.sound);
-  const landed = useJustLanded(space.latest.recordedAt);
+  const landed = useLandedClass(space.latest.recordedAt);
   const score = Math.round(useAnimatedNumber(space.verdict.score));
 
   return (
@@ -78,7 +81,7 @@ export default function SpaceCard({
       ref={ref}
       className={`panel relative isolate flex flex-col gap-5 overflow-hidden p-5 transition hover:-translate-y-1 hover:border-line-strong sm:p-6 ${
         space.stale ? "opacity-60 saturate-50" : ""
-      } ${landed ? "landed" : ""}`}
+      } ${landed}`}
     >
       {!space.stale && (
         <div className="card-trace" aria-hidden="true">

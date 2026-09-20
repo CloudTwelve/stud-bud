@@ -229,7 +229,8 @@ h3 {
 
 /* A card flashes its edge once when a sweep for that room lands, so the page
    only moves when the building does. */
-.landed {
+.landed-a,
+.landed-b {
   animation: landed 1200ms ease-out;
 }
 
@@ -261,7 +262,8 @@ h3 {
 @media (prefers-reduced-motion: reduce) {
   .blueprint span,
   .rise,
-  .landed {
+  .landed-a,
+  .landed-b {
     animation: none;
   }
 }
