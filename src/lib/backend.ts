@@ -85,6 +85,10 @@ const POSTGRES_SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS readings_space_time
     ON readings (space_id, recorded_at DESC);
+  CREATE TABLE IF NOT EXISTS seed_state (
+    id INTEGER PRIMARY KEY,
+    completed_at TEXT NOT NULL
+  );
 `;
 
 interface ReadingRow {
@@ -241,11 +245,11 @@ function sslFor(url: string): false | { rejectUnauthorized: boolean } {
   return { rejectUnauthorized: true };
 }
 
-/** Watch for another instance's seed to land, giving up rather than hanging. */
-async function waitForSeed(isEmpty: () => Promise<boolean>): Promise<void> {
+/** Watch for another instance's seed to finish, giving up rather than hanging. */
+async function waitForSeed(seeded: () => Promise<boolean>): Promise<void> {
   for (let attempt = 0; attempt < 25; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 200));
-    if (!(await isEmpty())) return;
+    if (await seeded()) return;
   }
 }
 
@@ -257,7 +261,15 @@ async function postgresBackend(url: string): Promise<Backend | null> {
       ssl: sslFor(url),
       max: 3,
     });
-    await pool.query(POSTGRES_SCHEMA);
+    try {
+      await pool.query(POSTGRES_SCHEMA);
+    } catch (error) {
+      // A pool outlives the request that built it, and `backend()` rebuilds
+      // after a failure, so a durable setup error (no DDL rights, say) would
+      // otherwise pile up one live pool per request.
+      await pool.end();
+      throw error;
+    }
 
     const query = async <T extends QueryResultRow>(
       text: string,
@@ -268,6 +280,24 @@ async function postgresBackend(url: string): Promise<Backend | null> {
       (
         await query<{ count: string }>("SELECT COUNT(*) AS count FROM spaces")
       )[0].count === "0";
+
+    // Waiters watch this marker rather than the first space to appear: `fill`
+    // commits room by room, so "not empty" would hand them a half-seeded
+    // campus. A database seeded before the marker existed counts as done.
+    const seeded = async () =>
+      (
+        await query<{ count: string }>(
+          "SELECT COUNT(*) AS count FROM seed_state",
+        )
+      )[0].count !== "0" || !(await isEmpty());
+
+    const markSeeded = async () => {
+      await query(
+        `INSERT INTO seed_state (id, completed_at) VALUES (1, $1)
+         ON CONFLICT (id) DO NOTHING`,
+        [new Date().toISOString()],
+      );
+    };
 
     return {
       kind: "postgres",
@@ -384,31 +414,38 @@ async function postgresBackend(url: string): Promise<Backend | null> {
       },
       isEmpty,
       seedOnce: async (fill) => {
-        if (!(await isEmpty())) return;
+        if (await seeded()) return;
 
         // Try for the lock rather than waiting on it: a waiting client is a
         // checked-out client, and enough of those starve `fill` of the
         // connections it needs. Losers hand their client back and watch for
-        // the winner's rows instead.
+        // the winner to finish instead.
         const client = await pool.connect();
-        const locked = (
-          await client.query<{ locked: boolean }>(
-            "SELECT pg_try_advisory_lock($1) AS locked",
-            [SEED_LOCK_KEY],
-          )
-        ).rows[0].locked;
-        if (!locked) {
-          client.release();
-          await waitForSeed(isEmpty);
-          return;
+        let locked = false;
+        try {
+          locked = (
+            await client.query<{ locked: boolean }>(
+              "SELECT pg_try_advisory_lock($1) AS locked",
+              [SEED_LOCK_KEY],
+            )
+          ).rows[0].locked;
+          if (locked) {
+            if (await isEmpty()) await fill();
+            await markSeeded();
+          }
+        } finally {
+          try {
+            if (locked) {
+              await client.query("SELECT pg_advisory_unlock($1)", [
+                SEED_LOCK_KEY,
+              ]);
+            }
+          } finally {
+            client.release();
+          }
         }
 
-        try {
-          if (await isEmpty()) await fill();
-        } finally {
-          await client.query("SELECT pg_advisory_unlock($1)", [SEED_LOCK_KEY]);
-          client.release();
-        }
+        if (!locked) await waitForSeed(seeded);
       },
     };
   } catch (error) {
