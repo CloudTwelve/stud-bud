@@ -46,16 +46,15 @@ def load_config() -> dict:
         "totalSeats": None,
         "occupiedSeats": None,
     }
+    source = "no file, looked in " + ", ".join(
+        str(p) for p in CONFIG_PATHS if p is not None
+    )
     for path in CONFIG_PATHS:
         if path is not None and path.is_file():
             config.update(json.loads(path.read_text()))
-            print(f"config: {path} -> {config['url'] or 'no url'}")
+            source = str(path)
             break
-    else:
-        print(
-            "config: none found, looked in "
-            + ", ".join(str(p) for p in CONFIG_PATHS if p is not None)
-        )
+    overridden = []
     for key, env in (
         ("url", "STUDBUD_URL"),
         ("token", "STUDBUD_INGEST_TOKEN"),
@@ -65,6 +64,11 @@ def load_config() -> dict:
     ):
         if os.environ.get(env):
             config[key] = os.environ[env]
+            overridden.append(env)
+    # Printed after the overrides so it names where each post will really go.
+    if overridden:
+        source += " + " + ", ".join(overridden)
+    print(f"config: {source} -> {config['url'] or 'no url'}")
     return config
 
 
