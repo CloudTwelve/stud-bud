@@ -16,6 +16,8 @@ export interface Backend {
   insertSpace(row: SpaceRow): void;
   renameSpace(id: string, name?: string, building?: string): void;
   history(id: string, limit: number): Reading[];
+  /** Newest reading at or before `recordedAt`, or undefined if none precedes it. */
+  readingBefore(id: string, recordedAt: string): Reading | undefined;
   hourly(id: string, hours: number): HourlyPoint[];
   insertReading(reading: Reading): void;
   isEmpty(): boolean;
@@ -116,6 +118,15 @@ function sqliteBackend(): Backend | null {
         )
           .map(toReading)
           .reverse(),
+      readingBefore: (id, recordedAt) => {
+        const row = db
+          .prepare(
+            `SELECT * FROM readings WHERE space_id = ? AND recorded_at <= ?
+             ORDER BY recorded_at DESC LIMIT 1`,
+          )
+          .get(id, recordedAt) as unknown as ReadingRow | undefined;
+        return row ? toReading(row) : undefined;
+      },
       hourly: (id, hours) => {
         const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
         const rows = db
@@ -185,6 +196,10 @@ function memoryBackend(): Backend {
       });
     },
     history: (id, limit) => (readings.get(id) ?? []).slice(-limit),
+    readingBefore: (id, recordedAt) =>
+      (readings.get(id) ?? [])
+        .filter((reading) => reading.recordedAt <= recordedAt)
+        .pop(),
     hourly: (id, hours) => {
       const since = Date.now() - hours * 60 * 60 * 1000;
       const buckets = new Map<string, Reading[]>();

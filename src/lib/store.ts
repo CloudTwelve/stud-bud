@@ -87,28 +87,24 @@ export class MissingSeatCountsError extends Error {
 
 export class MissingEnvironmentError extends Error {
   constructor(spaceId: string, missing: string[]) {
-    super(`${missing.join(", ")} required for new space ${spaceId}`);
+    super(
+      `${missing.join(", ")} required for ${spaceId}: nothing was recorded before this reading to carry forward`,
+    );
   }
-}
-
-/**
- * Latest reading at or before `recordedAt`, so a backdated sweep carries
- * forward the values that were current then rather than later ones.
- */
-function readingBefore(spaceId: string, recordedAt: string | undefined): Reading | undefined {
-  const history = backend().history(spaceId, HISTORY_POINTS);
-  const at = recordedAt ? Date.parse(recordedAt) : Number.POSITIVE_INFINITY;
-  const cutoff = Number.isFinite(at) ? at : Number.POSITIVE_INFINITY;
-  return (
-    history.filter((reading) => Date.parse(reading.recordedAt) <= cutoff).pop() ?? history[0]
-  );
 }
 
 export function recordReading(payload: IngestPayload): Space {
   seedIfEmpty();
   const store = backend();
 
-  const previous = readingBefore(payload.spaceId, payload.recordedAt);
+  // Canonical UTC keeps stored timestamps lexically ordered by instant, which
+  // both backends rely on when ordering and comparing readings.
+  const parsed = payload.recordedAt ? Date.parse(payload.recordedAt) : Date.now();
+  const recordedAt = new Date(Number.isFinite(parsed) ? parsed : Date.now()).toISOString();
+
+  // Values current at the sweep's own timestamp, so a backlog uploaded
+  // newest-first cannot write later readings into earlier history.
+  const previous = store.readingBefore(payload.spaceId, recordedAt);
   const occupiedSeats = payload.occupiedSeats ?? previous?.occupiedSeats;
   const totalSeats = payload.totalSeats ?? previous?.totalSeats;
   if (occupiedSeats === undefined || totalSeats === undefined) {
@@ -148,7 +144,7 @@ export function recordReading(payload: IngestPayload): Space {
     light,
     occupiedSeats,
     totalSeats,
-    recordedAt: payload.recordedAt ?? new Date().toISOString(),
+    recordedAt,
   });
 
   const space = getSpace(payload.spaceId);
