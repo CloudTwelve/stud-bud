@@ -37,22 +37,34 @@ export default function LiveFeed({
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [now, setNow] = useState<number | null>(null);
-  const latestRequest = useRef(0);
+  const inFlight = useRef(false);
+  const pending = useRef(false);
 
-  // The poll and the stream both trigger loads, so responses can land out of
-  // order; only the newest one is allowed to write.
+  // The poll and the stream both ask for a reload, so requests are serialised:
+  // a trigger arriving mid-request is coalesced into one follow-up fetch. That
+  // keeps responses from landing out of order without ever discarding the only
+  // answer a slow server managed to give.
   const load = useCallback(async () => {
-    const request = ++latestRequest.current;
+    if (inFlight.current) {
+      pending.current = true;
+      return;
+    }
+    inFlight.current = true;
     try {
-      const response = await fetch("/api/readings", { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = (await response.json()) as { spaces: Space[] };
-      if (request !== latestRequest.current) return;
-      setSpaces(data.spaces);
-      setError(null);
-    } catch (cause) {
-      if (request !== latestRequest.current) return;
-      setError(cause instanceof Error ? cause.message : "failed to reach the server");
+      do {
+        pending.current = false;
+        try {
+          const response = await fetch("/api/readings", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = (await response.json()) as { spaces: Space[] };
+          setSpaces(data.spaces);
+          setError(null);
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "failed to reach the server");
+        }
+      } while (pending.current);
+    } finally {
+      inFlight.current = false;
     }
   }, []);
 
