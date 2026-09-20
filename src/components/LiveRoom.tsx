@@ -44,6 +44,10 @@ export default function LiveRoom({ space }: LiveRoomProps) {
               )}.`
             : "Real sensors only. Nothing has posted yet, so there is nothing to show — this tab stays empty rather than inventing a room."}
         </p>
+        <p className="mt-2 max-w-2xl text-sm opacity-75">
+          For this project&apos;s demo the Arduino and the robot dog are set up in{" "}
+          {LIVE_SPACE.where} — every number on this tab is that room, right now.
+        </p>
       </div>
 
       {space ? (

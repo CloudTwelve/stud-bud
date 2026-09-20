@@ -42,9 +42,9 @@ type SortKey = "score" | "personalized" | "quiet" | "free";
 type ViewKey = "cards" | "map" | "live";
 
 const VIEWS: { key: ViewKey; label: string; Icon: typeof GridIcon }[] = [
+  { key: "live", label: LIVE_SPACE.label, Icon: DogIcon },
   { key: "cards", label: "Cards", Icon: GridIcon },
   { key: "map", label: "Map", Icon: MapIcon },
-  { key: "live", label: LIVE_SPACE.label, Icon: DogIcon },
 ];
 
 const SORTS: { key: SortKey; label: string }[] = [
@@ -63,7 +63,11 @@ interface DashboardProps {
 export default function Dashboard({ initialSpaces }: DashboardProps) {
   const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
   const [sort, setSort] = useState<SortKey>("score");
-  const [view, setView] = useState<ViewKey>("cards");
+  // The real room leads, but only once it exists: landing on an empty tab
+  // would read as a broken site rather than as hardware that hasn't posted.
+  const [view, setView] = useState<ViewKey>(() =>
+    initialSpaces.some((space) => space.id === LIVE_SPACE.id) ? "live" : "cards",
+  );
   const [showPrefs, setShowPrefs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
