@@ -31,7 +31,7 @@ They talk over the **Bridge**, an RPC channel Arduino provides. The sketch says
 "here is a sample"; Python decides what to do with it.
 
 ```
-[DHT22, BH1750, mic] --wires--> MCU (sketch.ino) --Bridge--> Linux (main.py) --WiFi--> /api/readings
+[DHT22, Modulino Light, mic] --wires--> MCU (sketch.ino) --Bridge--> Linux (main.py) --WiFi--> /api/readings
 ```
 
 Why split it at all? Because `analogRead` in a tight one-second loop must not be
@@ -72,27 +72,50 @@ DHT11 (the blue one) is the cheaper sibling: ±2 °C and whole-number humidity.
 The score bands here are 4.5 °C wide, so a ±2 °C sensor would decide the verdict
 by itself. Hence the DHT22.
 
-### BH1750 — light (digital, I²C)
+### Modulino Light — light (digital, I²C over Qwiic)
 
 ```cpp
-Wire.begin();
-lightReady = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
-float lux = lightMeter.readLightLevel();
+Modulino.begin();          // opens the I²C bus the Qwiic socket sits on
+lightReady = light.begin();
+if (light.update()) {      // one measurement, stored inside the object
+  lastLight = light.getLux();
+}
 ```
 
 I²C is a two-wire bus (SDA = data, SCL = clock) where every device has an
-address, so several sensors share the same two pins. The BH1750 returns **lux**
-directly — a real photometric unit, already weighted for how the human eye
-responds to different colours.
+address, so several sensors share the same two pins. Qwiic is just I²C plus
+power in a keyed 4-pin connector, so you cannot wire it backwards — that is the
+whole appeal of the Modulino family.
+
+Two UNO Q specifics worth knowing, because they are the usual source of "it
+compiles but finds nothing":
+
+- The Qwiic socket is the board's **second** I²C bus (`Wire1`, pins PD12/PD13),
+  not the `SDA`/`SCL` header pins. `Modulino.begin()` defaults to `Wire1` on
+  this board, so you don't pass anything — but a plain `Wire.begin()` sketch
+  would scan the wrong bus and see nothing.
+- Qwiic is **3.3 V only**.
+
+Inside the Modulino Light is an LTR-381RGB: red, green and blue channels plus
+ambient light and infrared. `update()` does the I²C transaction and caches all
+of them; the getters are then free:
+
+| call | meaning |
+| --- | --- |
+| `getLux()` | ambient light in **lux** — the one this project sends |
+| `getAL()` | the same measurement *raw*, before scaling — not lux |
+| `getIR()` | infrared channel |
+| `getColor()` / `getColorApproximate()` | packed RGB / a name like `"PALE BLUE"` |
 
 The alternative, a photoresistor (LDR) on an analog pin, returns "some voltage"
 that depends on the resistor you paired it with, the sensor's age and the colour
 of the light. You cannot say "this room has 520 lux" with an LDR without
 calibrating against a real light meter. Since the score has a hard band at
-300–800 lux, the unit has to mean something. Hence the BH1750.
+300–800 lux, the unit has to mean something.
 
-`lightMeter.begin()` returning false means the bus is wrong: check SDA/SCL and
-that ADDR is pulled to GND.
+`light.begin()` returning false means nothing answered on the bus: reseat the
+Qwiic cable (and if you daisy-chained modules, check you used the free socket on
+the *previous* module, not its input).
 
 ### Electret microphone + MAX4466/MAX9814 — noise (analog)
 
@@ -171,8 +194,8 @@ void setup() {
   Monitor.begin();   // App Lab's console — like Serial, but it goes over the Bridge
   Bridge.begin();    // opens the RPC channel to the Linux side
   dht.begin();
-  Wire.begin();      // I²C
-  lightReady = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
+  Modulino.begin();  // I²C on the Qwiic socket (Wire1 on this board)
+  lightReady = light.begin();
 }
 ```
 
@@ -246,7 +269,8 @@ you won't know which of five things is wrong.
    No hardware involved yet.
 2. **One sensor, alone.** Load the DHT22 library's own example. Get plausible
    numbers on the Monitor. Breathe on it — humidity should jump.
-3. **Second sensor, alone.** BH1750 example. Cover it with your hand; cover it
+3. **Second sensor, alone.** The Modulino Light `Light_Basic` example that comes
+   with the library. Cover it with your hand; cover it
    and shine a phone torch. Roughly: dim room ~100 lux, office ~400, by a window
    ~2000+.
 4. **Mic, alone.** Print `swing`. Clap. Then calibrate (section 2).
@@ -265,8 +289,10 @@ sensor from `3V3`.
 
 ## 6. Where to learn more
 
-- **Arduino's own sensor pages** for the DHT and BH1750 libraries — read the
-  example sketches, they're short and they're the ground truth for the API.
+- **Arduino's own sensor pages** for the DHT and
+  [Modulino Light](https://docs.arduino.cc/hardware/modulino-light) libraries —
+  read the example sketches, they're short and they're the ground truth for the
+  API.
 - **I²C**: understand address, SDA/SCL and pull-ups. `i2cdetect`-style scanner
   sketches are the fastest way to debug "sensor not found".
 - **ADC and sampling**: what "10-bit vs 12-bit" and "reference voltage" mean, and

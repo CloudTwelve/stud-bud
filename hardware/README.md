@@ -33,13 +33,19 @@ obvious. You can also exercise the server with no hardware at all from the
 | --- | --- | --- |
 | Board | **Arduino UNO Q**, or an UNO R4 WiFi / ESP32 DevKit / Nano 33 IoT | Something that can reach the network on its own — a classic UNO R3 cannot POST anything without a shield or a host laptop |
 | Temp + humidity | **DHT22** (AM2302) | ±0.5 °C / ±2 % RH, one data pin. DHT11 also works but is ±2 °C, too coarse for "is this room comfortable" |
-| Light | **BH1750** (GY-302, I2C) | Reports real **lux**, which is what the score bands use. A bare photoresistor only gives "brighter/darker" |
+| Light | **Modulino Light** on the UNO Q's Qwiic socket, or a **BH1750** (GY-302, I2C) on a pin-header board | Both report real **lux**, which is what the score bands use. A bare photoresistor only gives "brighter/darker". The Modulino needs no wiring at all |
 | Sound | **MAX9814** or **MAX4466** mic amp (analog out) | Gives an audio envelope you can turn into dB. The cheap KY-038 with a pot is usable but drifts |
 | Seats | VL53L0X time-of-flight, PIR, or a camera on a Pi | See "Counting people" below |
 | Misc | Breadboard, jumpers, 10 kΩ resistor, USB-C cable, USB power bank | The pull-up is for the DHT22 data line |
 
 Budget version: UNO R4 WiFi + DHT22 + BH1750 + MAX4466 is roughly $45 and is
 enough for a full demo.
+
+On an UNO Q the light sensor is the **Modulino Light** (an LTR-381RGB node): it
+plugs into the Qwiic socket with one keyed cable and is driven by
+`Arduino_Modulino` rather than the `BH1750` library. Wiring, API and flashing
+steps for that board are in
+[studbud_uno_q_app/README.md](studbud_uno_q_app/README.md).
 
 ## Wiring (UNO R4 / ESP32 — for the UNO Q see its own README)
 
