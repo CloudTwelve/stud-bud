@@ -21,6 +21,12 @@ background. Two differences matter for the UNO Q: its headers are **3.3 V** and
 the analog pins are not 5 V tolerant (power sensors from `3V3`), and it needs no
 WiFi shield or bridge laptop because Debian runs on the board itself.
 
+New to this? Read [`HOW-IT-WORKS.md`](HOW-IT-WORKS.md) first — it walks through
+the firmware line by line: why each sensor was chosen, how the microphone
+becomes decibels, and the order to bring the parts up in so a broken wire is
+obvious. You can also exercise the server with no hardware at all from the
+`/test` page.
+
 ## Parts
 
 | What | Part | Why this one |
