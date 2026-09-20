@@ -1,10 +1,14 @@
+import type { Backend } from "./backend";
 import { backend } from "./backend";
 import { READING_RECORDED, readingEvents } from "./events";
-import { isStale } from "./freshness";
+import { METRICS, isStale } from "./freshness";
 import { seedIfEmpty } from "./seed";
-import type { HourlyPoint, Metric, Space } from "./types";
+import type { HourlyPoint, Metric, Reading, Space } from "./types";
 
 const HISTORY_POINTS = 48;
+
+/** Rows a backdated sweep reads at a time while repairing forward. */
+const REPAIR_PAGE = 200;
 
 export { STALE_AFTER_MINUTES, isMetricStale, isStale } from "./freshness";
 
@@ -115,6 +119,88 @@ export class IncompleteFirstReadingError extends Error {
   }
 }
 
+/** The fields a metric owns; seats move together. */
+const METRIC_FIELDS: Record<Metric, CarriedField[]> = {
+  temperature: ["temperature"],
+  humidity: ["humidity"],
+  sound: ["sound"],
+  light: ["light"],
+  occupancy: ["occupiedSeats", "totalSeats"],
+};
+
+/**
+ * Which metrics a row measured itself rather than inherited: a measured field
+ * is stamped with the row's own time, a carried one keeps its older stamp.
+ * Rows written before per-metric stamps existed were whole sweeps.
+ */
+function measuredHere(reading: Reading): Set<Metric> {
+  return new Set(
+    METRICS.filter(
+      (metric) =>
+        (reading.measuredAt?.[metric] ?? reading.recordedAt) ===
+        reading.recordedAt,
+    ),
+  );
+}
+
+/**
+ * A row is a snapshot of everything known when it was written, so a sweep
+ * that arrives late — the dog uploading an offline backlog — lands behind
+ * rows that carried the value it supersedes. Push the new measurement forward
+ * through the rows that only inherited that metric, stopping at the first one
+ * that measured it for itself.
+ */
+async function repairCarriedAfter(
+  store: Backend,
+  inserted: Reading,
+): Promise<void> {
+  const pending = new Set(METRICS);
+  // A sensor can go quiet for hours, so the run of rows inheriting its value
+  // is unbounded; page until every metric has been measured again or the
+  // room's history runs out.
+  let cursorAt = inserted.recordedAt;
+  let cursorId = Number.MAX_SAFE_INTEGER;
+
+  while (pending.size > 0) {
+    const page = await store.readingsAfter(
+      inserted.spaceId,
+      cursorAt,
+      cursorId,
+      REPAIR_PAGE,
+    );
+    if (page.length === 0) return;
+
+    for (const row of page) {
+      if (pending.size === 0) return;
+      const own = measuredHere(row);
+      const repaired: Reading = { ...row, measuredAt: { ...row.measuredAt } };
+      let changed = false;
+
+      for (const metric of pending) {
+        if (own.has(metric)) {
+          pending.delete(metric);
+          continue;
+        }
+        for (const field of METRIC_FIELDS[metric]) {
+          if (repaired[field] !== inserted[field]) {
+            repaired[field] = inserted[field];
+            changed = true;
+          }
+        }
+        const at = inserted.measuredAt?.[metric] ?? inserted.recordedAt;
+        if (repaired.measuredAt?.[metric] !== at) {
+          repaired.measuredAt = { ...repaired.measuredAt, [metric]: at };
+          changed = true;
+        }
+      }
+
+      if (changed) await store.updateReading(row.id, repaired);
+      cursorAt = row.recordedAt;
+      cursorId = row.id;
+    }
+  }
+}
+
 export class SeatCountError extends Error {
   constructor(occupiedSeats: number, totalSeats: number) {
     super(
@@ -181,12 +267,14 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
     await store.renameSpace(payload.spaceId, payload.name, payload.building);
   }
 
-  await store.insertReading({
+  const reading: Reading = {
     spaceId: payload.spaceId,
     ...carried,
     recordedAt,
     measuredAt,
-  });
+  };
+  await store.insertReading(reading);
+  await repairCarriedAfter(store, reading);
 
   const space = await getSpace(payload.spaceId);
   if (!space) throw new Error(`space ${payload.spaceId} vanished after insert`);

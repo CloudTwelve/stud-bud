@@ -118,6 +118,12 @@ rides in. If one sensor dies while the others keep posting, that metric alone
 goes stale after 45 minutes: the card strikes it through, marks it `no signal`,
 and drops it from the score, while the room stays live on the rest.
 
+A sweep that arrives late lands behind rows that already carried the value it
+supersedes, so inserting one also pushes its measurement forward through the
+rows that only inherited that metric, stopping at the first sweep that measured
+it for itself. Without that, a backlogged seat count would show in history but
+never in the room's current numbers.
+
 Readings are stored in SQLite (`.data/studbud.db` by default, created and
 seeded with demo rooms on first boot), so history survives restarts. The
 dashboard updates the instant a sweep lands via `/api/stream`, with a 30 s poll
