@@ -10,6 +10,6 @@ export const metadata: Metadata = {
     "Send four raw sensor values to the Stud-Bud ingest API and see exactly what the server does with them.",
 };
 
-export default function TestPage() {
-  return <SensorTest initialSpaces={listSpaces()} />;
+export default async function TestPage() {
+  return <SensorTest initialSpaces={await listSpaces()} />;
 }

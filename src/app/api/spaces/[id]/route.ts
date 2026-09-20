@@ -9,12 +9,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const space = getSpace(id);
+  const space = await getSpace(id);
   if (!space) {
     return NextResponse.json({ errors: [`unknown space "${id}"`] }, { status: 404 });
   }
 
-  const hourly = hourlyHistory(id);
+  const hourly = await hourlyHistory(id);
   return NextResponse.json({
     space: { ...space, verdict: evaluate(space.latest) },
     hourly,

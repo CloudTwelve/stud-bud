@@ -7,7 +7,7 @@ import { parseIngest } from "@/lib/validate";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const spaces = listSpaces().map((space) => ({
+  const spaces = (await listSpaces()).map((space) => ({
     ...space,
     verdict: evaluate(space.latest),
   }));
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
   let space;
   try {
-    space = recordReading(parsed.payload);
+    space = await recordReading(parsed.payload);
   } catch (error) {
     if (error instanceof MissingSeatCountsError) {
       return NextResponse.json({ errors: [error.message] }, { status: 400 });
