@@ -17,40 +17,40 @@ const SERIES: Series[] = [
     key: "sound",
     label: "Noise",
     unit: "dB",
-    from: "#f0abfc",
-    to: "#818cf8",
+    from: "var(--brand)",
+    to: "var(--accent)",
     format: (v) => `${Math.round(v)} dB`,
   },
   {
     key: "fullness",
     label: "Fullness",
     unit: "%",
-    from: "#5eead4",
-    to: "#38bdf8",
+    from: "var(--brand-soft)",
+    to: "var(--brand)",
     format: (v) => `${Math.round(v * 100)}%`,
   },
   {
     key: "temperature",
     label: "Temperature",
     unit: "°C",
-    from: "#fda4af",
-    to: "#fb923c",
+    from: "var(--accent-soft)",
+    to: "var(--accent)",
     format: (v) => `${v.toFixed(1)}°C`,
   },
   {
     key: "humidity",
     label: "Humidity",
     unit: "%",
-    from: "#a5b4fc",
-    to: "#22d3ee",
+    from: "var(--brand)",
+    to: "var(--brand-soft)",
     format: (v) => `${Math.round(v)}%`,
   },
   {
     key: "light",
     label: "Light",
     unit: "lux",
-    from: "#fde68a",
-    to: "#f472b6",
+    from: "var(--accent)",
+    to: "var(--brand)",
     format: (v) => `${Math.round(v)} lux`,
   },
 ];
@@ -98,10 +98,10 @@ export default function TrendChart({ points }: { points: HourlyPoint[] }) {
             type="button"
             onClick={() => setActive(series)}
             aria-pressed={series.key === active.key}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+            className={`clip-tag px-3 py-1.5 text-xs font-medium transition ${
               series.key === active.key
-                ? "bg-gradient-to-r from-fuchsia-400 to-sky-400 text-white shadow"
-                : "card hover:scale-[1.02]"
+                ? "on-accent"
+                : "panel-sm hover:-translate-y-0.5 hover:border-line-strong"
             }`}
           >
             {series.label}
@@ -125,14 +125,25 @@ export default function TrendChart({ points }: { points: HourlyPoint[] }) {
             <stop offset="100%" stopColor={active.to} stopOpacity="0" />
           </linearGradient>
         </defs>
+        {[0, 1, 2, 3, 4].map((step) => (
+          <line
+            key={step}
+            x1={PADDING}
+            x2={WIDTH - PADDING}
+            y1={PADDING + (step / 4) * (HEIGHT - PADDING * 2)}
+            y2={PADDING + (step / 4) * (HEIGHT - PADDING * 2)}
+            stroke="var(--line)"
+            strokeWidth="1"
+          />
+        ))}
         <polygon points={area} fill={`url(#${gradientId}-fill)`} />
         <polyline
           points={coords.join(" ")}
           fill="none"
           stroke={`url(#${gradientId})`}
           strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          strokeLinecap="square"
+          strokeLinejoin="miter"
         />
       </svg>
 

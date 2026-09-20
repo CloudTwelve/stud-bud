@@ -1,0 +1,9 @@
+{
+  "url": "https://your-app.vercel.app/api/readings",
+  "token": "",
+  "spaceId": "stud-5-lounge",
+  "name": "Stud 5 Lounge",
+  "building": "W20",
+  "occupiedSeats": 0,
+  "totalSeats": 18
+}

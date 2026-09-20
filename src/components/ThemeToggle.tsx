@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { MoonIcon, SunIcon } from "./Icons";
 
 function subscribe(onChange: () => void): () => void {
   const observer = new MutationObserver(onChange);
@@ -30,11 +31,13 @@ export default function ThemeToggle() {
       onClick={toggle}
       aria-label="Toggle dark mode"
       aria-pressed={dark}
-      className="card group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-sm transition hover:scale-[1.03] active:scale-95"
+      className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong active:translate-y-0"
     >
-      <span className="text-base leading-none" aria-hidden="true">
-        {dark ? "🌙" : "☀️"}
-      </span>
+      {dark ? (
+        <MoonIcon className="h-4 w-4 text-brand" />
+      ) : (
+        <SunIcon className="h-4 w-4 text-accent" />
+      )}
       <span className="hidden sm:inline">{dark ? "Dark" : "Light"} mode</span>
     </button>
   );

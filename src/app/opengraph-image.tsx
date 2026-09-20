@@ -15,12 +15,12 @@ export default function OpengraphImage() {
           flexDirection: "column",
           justifyContent: "center",
           padding: "80px",
-          background: "linear-gradient(135deg, #fdf2ff 0%, #e0e7ff 45%, #ccfbf1 100%)",
-          color: "#3b0764",
+          background: "linear-gradient(135deg, #04191b 0%, #0b3b3a 60%, #7c2d12 100%)",
+          color: "#dff3ef",
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ fontSize: 30, letterSpacing: 8, opacity: 0.6 }}>
+        <div style={{ fontSize: 30, letterSpacing: 8, color: "#fb923c" }}>
           HACKMIT · ARDUINO + ROBOT DOG
         </div>
         <div style={{ fontSize: 132, fontWeight: 800, marginTop: 16 }}>Stud-Bud</div>

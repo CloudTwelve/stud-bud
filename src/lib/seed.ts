@@ -1,7 +1,10 @@
 import { backend } from "./backend";
+import type { DemoSpaceId } from "./demo";
+import type { Reading } from "./types";
 
 interface SpaceSeed {
-  id: string;
+  /** Typed so a new seed that the UI would not call example data fails here. */
+  id: DemoSpaceId;
   name: string;
   building: string;
   temperature: number;
@@ -71,36 +74,47 @@ function dailyCurve(hour: number): number {
   return Math.sin(shifted * Math.PI) ** 1.6;
 }
 
-export function seedIfEmpty(): void {
-  const store = backend();
-  if (!store.isEmpty()) return;
+export async function seedIfEmpty(): Promise<void> {
+  if (process.env.STUDBUD_NO_SEED === "1") return;
+  const store = await backend();
+  if (!(await store.isEmpty())) return;
 
-  const now = Date.now();
-  for (const seed of SEEDS) {
-    store.insertSpace({ id: seed.id, name: seed.name, building: seed.building });
-
-    // 24 hours of sweeps, every 20 minutes.
-    for (let step = 24 * 3; step >= 0; step -= 1) {
-      const at = new Date(now - step * 20 * 60 * 1000);
-      const busy = dailyCurve(at.getHours() + at.getMinutes() / 60);
-      const noise = (spread: number) => (Math.random() - 0.5) * spread;
-
-      store.insertReading({
-        spaceId: seed.id,
-        temperature: Number((seed.temperature + busy * 1.8 + noise(0.6)).toFixed(1)),
-        humidity: Number((seed.humidity + busy * 6 + noise(3)).toFixed(1)),
-        sound: Number((seed.sound - 8 + busy * 18 + noise(4)).toFixed(1)),
-        light: Math.round(seed.light + busy * 120 + noise(60)),
-        occupiedSeats: Math.max(
-          0,
-          Math.min(
-            seed.totalSeats,
-            Math.round(seed.totalSeats * seed.peakFill * busy + noise(3)),
-          ),
-        ),
-        totalSeats: seed.totalSeats,
-        recordedAt: at.toISOString(),
+  await store.seedOnce(async () => {
+    const now = Date.now();
+    for (const seed of SEEDS) {
+      await store.insertSpace({
+        id: seed.id,
+        name: seed.name,
+        building: seed.building,
       });
+
+      // 24 hours of sweeps, every 20 minutes.
+      const readings: Reading[] = [];
+      for (let step = 24 * 3; step >= 0; step -= 1) {
+        const at = new Date(now - step * 20 * 60 * 1000);
+        const busy = dailyCurve(at.getHours() + at.getMinutes() / 60);
+        const noise = (spread: number) => (Math.random() - 0.5) * spread;
+
+        readings.push({
+          spaceId: seed.id,
+          temperature: Number(
+            (seed.temperature + busy * 1.8 + noise(0.6)).toFixed(1),
+          ),
+          humidity: Number((seed.humidity + busy * 6 + noise(3)).toFixed(1)),
+          sound: Number((seed.sound - 8 + busy * 18 + noise(4)).toFixed(1)),
+          light: Math.round(seed.light + busy * 120 + noise(60)),
+          occupiedSeats: Math.max(
+            0,
+            Math.min(
+              seed.totalSeats,
+              Math.round(seed.totalSeats * seed.peakFill * busy + noise(3)),
+            ),
+          ),
+          totalSeats: seed.totalSeats,
+          recordedAt: at.toISOString(),
+        });
+      }
+      await store.insertReadings(readings);
     }
-  }
+  });
 }

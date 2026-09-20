@@ -3,33 +3,56 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #fdf7ff;
-  --foreground: #2c1f3d;
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-border: rgba(147, 112, 219, 0.18);
-  --glow-a: #ffd6e8;
-  --glow-b: #d9ccff;
-  --glow-c: #c7f0ff;
-  --glow-d: #fff3c4;
+  --background: #f2f6f6;
+  --foreground: #06231f;
+  --surface: #ffffff;
+  --surface-muted: rgba(13, 148, 136, 0.07);
+  --line: rgba(13, 148, 136, 0.26);
+  --line-strong: rgba(13, 148, 136, 0.5);
+  --brand: #0d9488;
+  --brand-soft: #5eead4;
+  --accent: #ea580c;
+  --accent-soft: #fdba74;
+  /* Text sitting on a solid accent fill; white on orange fails 4.5:1. */
+  --on-accent: #04211f;
+  --grid-line: rgba(13, 148, 136, 0.12);
+  --grid-glow-a: rgba(45, 212, 191, 0.3);
+  --grid-glow-b: rgba(249, 115, 22, 0.2);
+  --code-bg: #04211f;
 }
 
 .dark {
-  --background: #0d0a1a;
-  --foreground: #efe9ff;
-  --surface: rgba(28, 22, 48, 0.72);
-  --surface-border: rgba(167, 139, 250, 0.24);
-  --glow-a: #4c1d95;
-  --glow-b: #1e3a8a;
-  --glow-c: #0f766e;
-  --glow-d: #831843;
+  --background: #04191b;
+  --foreground: #dff3ef;
+  --surface: #072528;
+  --surface-muted: rgba(94, 234, 212, 0.07);
+  --line: rgba(94, 234, 212, 0.22);
+  --line-strong: rgba(94, 234, 212, 0.45);
+  --brand: #2dd4bf;
+  --brand-soft: #0d9488;
+  --accent: #fb923c;
+  --accent-soft: #c2410c;
+  --on-accent: #04211f;
+  --grid-line: rgba(94, 234, 212, 0.1);
+  --grid-glow-a: rgba(13, 148, 136, 0.28);
+  --grid-glow-b: rgba(234, 88, 12, 0.22);
+  --code-bg: #02100f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
-  --color-surface-border: var(--surface-border);
+  --color-surface-muted: var(--surface-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-space-grotesk);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -42,73 +65,270 @@ body {
     color 300ms ease;
 }
 
-.aurora {
+h1,
+h2,
+h3 {
+  font-family: var(--font-space-grotesk), var(--font-geist-sans), sans-serif;
+}
+
+/* The page sits on graph paper: a floor plan of a study space seen from above. */
+.blueprint {
   position: fixed;
   inset: 0;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 100%);
 }
 
-.aurora span {
+.blueprint::before,
+.blueprint::after {
+  content: "";
   position: absolute;
-  display: block;
-  width: 46rem;
-  height: 46rem;
-  border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.55;
-  animation: drift 22s ease-in-out infinite alternate;
+  width: 42rem;
+  height: 42rem;
+  filter: blur(120px);
 }
 
-.dark .aurora span {
-  opacity: 0.4;
+.blueprint::before {
+  background: var(--grid-glow-a);
+  top: -18rem;
+  left: -12rem;
 }
 
-.aurora span:nth-child(1) {
-  background: var(--glow-a);
-  top: -14rem;
-  left: -10rem;
+.blueprint::after {
+  background: var(--grid-glow-b);
+  top: -10rem;
+  right: -16rem;
 }
 
-.aurora span:nth-child(2) {
-  background: var(--glow-b);
-  top: -6rem;
-  right: -14rem;
-  animation-delay: -6s;
+/* A slow sweep across the grid, the way the dog walks a room. */
+.blueprint span {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 42%,
+    var(--grid-glow-a) 50%,
+    transparent 58%
+  );
+  opacity: 0.35;
+  animation: sweep 14s linear infinite;
 }
 
-.aurora span:nth-child(3) {
-  background: var(--glow-c);
-  bottom: -20rem;
-  left: 18%;
-  animation-delay: -12s;
-}
-
-.aurora span:nth-child(4) {
-  background: var(--glow-d);
-  bottom: -16rem;
-  right: 6%;
-  animation-delay: -3s;
-}
-
-@keyframes drift {
+@keyframes sweep {
   from {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(-60%, 0, 0);
   }
   to {
-    transform: translate3d(3rem, -2rem, 0) scale(1.15);
+    transform: translate3d(60%, 0, 0);
+  }
+}
+
+/* Angular panels: a clipped corner instead of a radius, so nothing is round. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  clip-path: polygon(
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
+  );
+}
+
+.panel-sm {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+}
+
+.clip-tag {
+  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+}
+
+/* clip-path also clips the browser's focus ring, so draw it inside. */
+.clip-tag:focus-visible,
+.clip-btn:focus-visible,
+.panel-sm:focus-visible {
+  /* Transparent outline pulled inside the clip: forced-colors mode drops the
+     shadow but repaints the outline in a system colour. */
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Solid accent fills: white text on orange fails contrast, and an accent
+   focus ring would be invisible against the fill. */
+.on-accent {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.on-accent:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--on-accent);
+}
+
+.clip-btn {
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
+}
+
+/* Section markers: a short accent rule above a heading. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.eyebrow::before {
+  content: "";
+  width: 1.75rem;
+  height: 2px;
+  background: var(--accent);
+}
+
+.rise {
+  animation: rise 500ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A card flashes its edge once when a sweep for that room lands, so the page
+   only moves when the building does.
+   Two identical animations, alternated per sweep: a browser restarts an
+   animation when the computed animation-name changes, so swapping between
+   classes that resolve to the same name would not restart anything. */
+.landed-a {
+  animation: landed-a 1200ms ease-out;
+}
+
+.landed-b {
+  animation: landed-b 1200ms ease-out;
+}
+
+@keyframes landed-a {
+  0% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  40% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+}
+
+@keyframes landed-b {
+  0% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  40% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+}
+
+/* The room's own history, bled across the card as texture rather than a chart. */
+.card-trace {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 6rem;
+  opacity: 0.1;
+  pointer-events: none;
+  mask-image: linear-gradient(to top, #000, transparent);
+}
+
+/* Marks the one room on the map that is real hardware. */
+.map-live-pip {
+  animation: map-live-pip 2s ease-in-out infinite;
+}
+
+@keyframes map-live-pip {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora span {
+  .blueprint span,
+  .rise,
+  .landed-a,
+  .landed-b,
+  .map-live-pip {
     animation: none;
   }
 }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  backdrop-filter: blur(18px);
+/* Low-WiFi mode: keep every number, drop everything that costs a frame or a
+   byte. Blur and the grid sweep are the expensive ones on a tired laptop. */
+.lite .blueprint span {
+  display: none;
+}
+
+.lite .blueprint::before,
+.lite .blueprint::after {
+  display: none;
+}
+
+.lite .card-trace {
+  display: none;
+}
+
+.lite *,
+.lite *::before,
+.lite *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+.lite .hover\:-translate-y-0\.5:hover,
+.lite .hover\:-translate-y-1:hover {
+  transform: none;
 }

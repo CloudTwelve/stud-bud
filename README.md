@@ -16,9 +16,29 @@ Other scripts: `npm run build`, `npm start`, `npm run lint`.
 | Variable | Purpose |
 | --- | --- |
 | `STUDBUD_INGEST_TOKEN` | When set, `POST /api/readings` requires `Authorization: Bearer <token>`. Unset means open ingest (local development only). |
-| `STUDBUD_DB` | SQLite file path. Defaults to `.data/studbud.db`. |
+| `DATABASE_URL` | Postgres connection string. When set, it is used instead of SQLite — this is what makes readings durable on a serverless host. `POSTGRES_URL` and `STUDBUD_POSTGRES_URL` are also accepted. |
+| `STUDBUD_PG_INSECURE_SSL` | Set to `1` to skip Postgres certificate verification (only needed for a database behind a private CA). |
+| `STUDBUD_DB` | SQLite file path, used when no Postgres URL is set. Defaults to `.data/studbud.db`. |
 | `STUDBUD_MEMORY_STORE` | Set to `1` to skip SQLite and keep readings in memory. |
 | `STUDBUD_BASE_URL` | Public URL used for Open Graph / share metadata. |
+| `STUDBUD_NO_SEED` | Set to `1` to never generate the five demo rooms, so the dashboard shows only rooms real hardware has posted. |
+
+Storage is chosen at startup: Postgres if a connection string is configured,
+otherwise SQLite on disk, otherwise an in-memory store that resets with the
+process. Local development needs no database at all.
+
+### Deploying
+
+On Vercel, attach a Postgres database (Storage → Create Database → Neon) so
+`DATABASE_URL` is injected; without it every request gets a fresh machine with
+a read-only disk and readings vanish. For hardware to POST to the deployment,
+turn off Settings → Deployment Protection → Vercel Authentication, which
+otherwise answers unauthenticated requests with a redirect to Vercel's login.
+Full steps are in [`docs/LIVE-DEMO.md`](docs/LIVE-DEMO.md).
+
+Going live with real hardware — what to switch off, in what order — is in
+[`docs/DEMO-DAY.md`](docs/DEMO-DAY.md), which also has a reading order for the
+codebase.
 
 ## How the score works
 
@@ -74,32 +94,24 @@ curl -X POST http://localhost:3000/api/readings \
 | Field | Unit | Required |
 | --- | --- | --- |
 | `spaceId` | stable id for the room | yes |
-| `temperature` | °C | yes for a room's first sweep |
-| `humidity` | % RH | yes for a room's first sweep |
-| `sound` | dB | yes for a room's first sweep |
-| `light` | lux | yes for a room's first sweep |
-| `occupiedSeats` / `totalSeats` | seats | yes for a room's first sweep |
+| `temperature` | °C | only in a room's first sweep |
+| `humidity` | % RH | only in a room's first sweep |
+| `sound` | dB | only in a room's first sweep |
+| `light` | lux | only in a room's first sweep |
+| `occupiedSeats` / `totalSeats` | seats | only in a room's first sweep |
 | `name`, `building` | labels for a new room | no |
 | `recordedAt` | ISO 8601, defaults to now | no |
 
-Every measurement is optional once a room exists: omitted fields keep the
-room's last known value. That lets the two sources post independently — the
-Arduino sends environment metrics without touching the seat count, and the
-robot dog sends seats without inventing a temperature. Send the two seat
-fields together or leave both out.
-
-The robot dog posts one reading per patrol sweep:
-
-```bash
-curl -X POST https://<your-app>.vercel.app/api/readings \
-  -H "authorization: Bearer $STUDBUD_INGEST_TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"spaceId": "hayden-reading-room", "occupiedSeats": 2, "totalSeats": 5}'
-```
-
-That is sent by `StudySpotUploader` in the dimos stack, which counts people and
-seats from the dog's camera and spools reports to disk while the laptop is on
-the robot's access point with no internet.
+Every measurement is optional (send at least one): whatever a sweep omits is
+carried forward from the last reading recorded *before it*. That is what lets
+two machines report on the same room without stepping on each other — an
+Arduino that knows nothing about seats posts its four sensors, a robot dog that
+knows nothing about temperature posts its seat counts, and neither wipes the
+other's numbers. Carrying forward from the reading current at `recordedAt`
+rather than the newest one keeps backdated sweeps honest: the dog uploads a
+queued patrol newest-first once it is back online, and those older sweeps must
+not inherit measurements taken after them. A sweep with nothing recorded before
+it has nothing to carry forward, so it must carry all six.
 
 Readings are stored in SQLite (`.data/studbud.db` by default, created and
 seeded with demo rooms on first boot), so history survives restarts. The

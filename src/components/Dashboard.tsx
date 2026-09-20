@@ -8,6 +8,9 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { isDemoSpace } from "@/lib/demo";
+import { LIVE_SPACE } from "@/lib/live";
+import { useReorderAnimation } from "@/lib/motion";
 import {
   getServerWeights,
   getWeights,
@@ -17,11 +20,32 @@ import {
 } from "@/lib/prefs";
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
+import CampusMap from "./CampusMap";
+import DemoDataNotice from "./DemoDataNotice";
+import {
+  ArrowIcon,
+  BookIcon,
+  DogIcon,
+  GridIcon,
+  MapIcon,
+  SignalIcon,
+} from "./Icons";
+import LiteToggle from "./LiteToggle";
+import LiveRoom from "./LiveRoom";
+import Logo from "./Logo";
 import Preferences from "./Preferences";
+import Quip from "./Quip";
 import SpaceCard from "./SpaceCard";
 import ThemeToggle from "./ThemeToggle";
 
 type SortKey = "score" | "personalized" | "quiet" | "free";
+type ViewKey = "cards" | "map" | "live";
+
+const VIEWS: { key: ViewKey; label: string; Icon: typeof GridIcon }[] = [
+  { key: "live", label: LIVE_SPACE.label, Icon: DogIcon },
+  { key: "cards", label: "Cards", Icon: GridIcon },
+  { key: "map", label: "Map", Icon: MapIcon },
+];
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "score", label: "Best overall" },
@@ -39,6 +63,11 @@ interface DashboardProps {
 export default function Dashboard({ initialSpaces }: DashboardProps) {
   const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
   const [sort, setSort] = useState<SortKey>("score");
+  // The real room leads, but only once it exists: landing on an empty tab
+  // would read as a broken site rather than as hardware that hasn't posted.
+  const [view, setView] = useState<ViewKey>(() =>
+    initialSpaces.some((space) => space.id === LIVE_SPACE.id) ? "live" : "cards",
+  );
   const [showPrefs, setShowPrefs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
@@ -83,8 +112,16 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
     [spaces, weights],
   );
 
+  // The hardware room lives on its own tab: mixing it into the campus we
+  // demo would put one real room in a list of idealized ones.
+  const liveSpace = scored.find((space) => space.id === LIVE_SPACE.id) ?? null;
+  const campus = useMemo(
+    () => scored.filter((space) => space.id !== LIVE_SPACE.id),
+    [scored],
+  );
+
   const sorted = useMemo(() => {
-    const copy = [...scored];
+    const copy = [...campus];
     const rank = (space: ScoredSpace) => (space.stale ? -1 : 1);
     if (sort === "quiet") {
       copy.sort((a, b) => rank(b) - rank(a) || a.latest.sound - b.latest.sound);
@@ -100,20 +137,30 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
       copy.sort((a, b) => rank(b) - rank(a) || b.verdict.score - a.verdict.score);
     }
     return copy;
-  }, [scored, sort]);
+  }, [campus, sort]);
+
+  // The map is a plan of the building, so the real room belongs on it even
+  // though the ranked card list stays idealized; appended last so the readout
+  // still opens on whatever the chosen sort put first.
+  const mapped = useMemo(
+    () => (liveSpace ? [...sorted, liveSpace] : sorted),
+    [sorted, liveSpace],
+  );
 
   const best = sorted.find((space) => !space.stale) ?? null;
+  const cardRef = useReorderAnimation(sorted.map((space) => space.id));
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-8 sm:gap-10 sm:px-8 sm:py-14">
       <header className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-60">
+            <p className="eyebrow">
+              <DogIcon className="h-4 w-4" />
               HackMIT · Arduino + robot dog
             </p>
-            <h1 className="mt-2 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-sky-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-6xl">
-              Stud-Bud
+            <h1 className="mt-3">
+              <Logo className="h-10 sm:h-14" />
             </h1>
             <p className="mt-3 max-w-xl text-sm opacity-75 sm:text-base">
               Live temperature, humidity, noise, light and seat counts from every
@@ -123,16 +170,19 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
           <div className="flex items-center gap-2">
             <Link
               href="/"
-              className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
+              className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
             >
+              <BookIcon className="h-4 w-4 text-brand" />
               How it works
             </Link>
             <Link
               href="/test"
-              className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
+              className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
             >
+              <SignalIcon className="h-4 w-4 text-brand" />
               Test bench
             </Link>
+            <LiteToggle />
             <ThemeToggle />
           </div>
         </div>
@@ -140,14 +190,13 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         {best && (
           <Link
             href={`/space/${best.id}`}
-            className="card block rounded-3xl p-5 transition hover:-translate-y-0.5 sm:p-6"
+            className="panel rise block border-l-2 border-l-[var(--accent)] p-5 transition hover:-translate-y-0.5 hover:border-line-strong sm:p-6"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-60">
-              Go here right now
-            </p>
-            <p className="mt-2 text-xl font-semibold sm:text-2xl">
+            <p className="eyebrow">Go here right now</p>
+            <p className="mt-2 flex items-center gap-2 text-xl font-semibold sm:text-2xl">
               {best.name}{" "}
               <span className="text-base font-normal opacity-50">{best.building}</span>
+              <ArrowIcon className="h-4 w-4 text-accent" />
             </p>
             <p className="mt-1 text-sm opacity-80">{best.verdict.summary}</p>
           </Link>
@@ -155,7 +204,8 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            {SORTS.map((option) => (
+            {view !== "live" &&
+              SORTS.map((option) => (
               <button
                 key={option.key}
                 type="button"
@@ -164,19 +214,40 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                   if (option.key === "personalized") setShowPrefs(true);
                 }}
                 aria-pressed={sort === option.key}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                className={`clip-tag px-4 py-2 text-sm font-medium transition ${
                   sort === option.key
-                    ? "bg-gradient-to-r from-fuchsia-400 to-sky-400 text-white shadow"
-                    : "card hover:scale-[1.02]"
+                    ? "on-accent"
+                    : "panel-sm hover:-translate-y-0.5 hover:border-line-strong"
                 }`}
               >
-                {option.label}
-              </button>
-            ))}
-            <span className="ml-auto flex items-center gap-2 text-xs opacity-60">
+                  {option.label}
+                </button>
+              ))}
+            <div className="ml-auto flex items-center gap-2">
+              <div className="panel-sm clip-tag flex items-center">
+                {VIEWS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setView(option.key)}
+                    aria-pressed={view === option.key}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition ${
+                      view === option.key ? "on-accent" : "opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <option.Icon className="h-3.5 w-3.5" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <span className="flex items-center gap-2 text-xs opacity-60">
               <span
-                className={`inline-block h-2 w-2 rounded-full ${
-                  error ? "bg-rose-400" : live ? "bg-emerald-400" : "bg-amber-400"
+                className={`inline-block h-2 w-2 ${
+                  error
+                    ? "bg-rose-500"
+                    : live
+                      ? "bg-[var(--brand)]"
+                      : "bg-[var(--accent)]"
                 }`}
                 aria-hidden="true"
               />
@@ -187,7 +258,8 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                   : updatedAt
                     ? `Synced ${new Date(updatedAt).toLocaleTimeString()}`
                     : "Polling every 30s"}
-            </span>
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -195,7 +267,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
               type="button"
               onClick={() => setShowPrefs((open) => !open)}
               aria-expanded={showPrefs}
-              className="card rounded-full px-3 py-1.5 text-xs font-medium transition hover:scale-[1.02]"
+              className="panel-sm clip-tag px-3 py-1.5 text-xs font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
             >
               {showPrefs ? "Hide preferences" : "Set your preferences"}
             </button>
@@ -219,23 +291,37 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         </div>
       </header>
 
-      <section className="grid gap-5 md:grid-cols-2 md:gap-6">
-        {sorted.map((space) => (
-          <SpaceCard key={space.id} space={space} />
-        ))}
-        {sorted.length === 0 && (
-          <p className="opacity-60">Waiting for the first sensor sweep…</p>
-        )}
-      </section>
+      {view !== "live" && sorted.some((space) => isDemoSpace(space.id)) && (
+        <DemoDataNotice />
+      )}
 
-      <footer className="card rounded-3xl p-5 text-sm sm:p-6">
-        <p className="font-semibold">Feeding data in from the hardware</p>
+      {view === "live" ? (
+        <LiveRoom space={liveSpace} />
+      ) : view === "map" ? (
+        <CampusMap spaces={mapped} />
+      ) : (
+        <section className="grid gap-5 md:grid-cols-2 md:gap-6">
+          {sorted.map((space) => (
+            <SpaceCard key={space.id} space={space} ref={cardRef(space.id)} />
+          ))}
+          {sorted.length === 0 && (
+            <p className="opacity-60">
+              Waiting for the first sweep — the dog is probably tooling on
+              something else.
+            </p>
+          )}
+        </section>
+      )}
+
+      <footer className="panel p-5 text-sm sm:p-6">
+        <p className="eyebrow">Ingest</p>
+        <p className="mt-2 font-semibold">Feeding data in from the hardware</p>
         <p className="mt-1 opacity-75">
           The Arduino and robot dog POST one JSON payload per sweep (send{" "}
           <code className="font-mono text-xs">Authorization: Bearer $STUDBUD_INGEST_TOKEN</code>{" "}
           when the server has a token configured):
         </p>
-        <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/80 p-4 font-mono text-xs text-fuchsia-100">
+        <pre className="clip-tag mt-3 overflow-x-auto bg-[var(--code-bg)] p-4 font-mono text-xs text-[color:var(--brand-soft)]">
 {`POST /api/readings
 {
   "spaceId": "hayden-reading-room",
@@ -249,6 +335,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
   "totalSeats": 60
 }`}
         </pre>
+        <Quip />
       </footer>
     </main>
   );
