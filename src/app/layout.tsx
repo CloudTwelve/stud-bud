@@ -38,11 +38,18 @@ export const viewport = {
   themeColor: "#0d9488",
 };
 
-const themeScript = `(() => {
+// Applied before first paint so the page never flashes the wrong theme, or a
+// background animation a low-WiFi visitor asked not to have.
+const bootScript = `(() => {
   try {
     const stored = localStorage.getItem("studbud-theme");
     const dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", dark);
+    const lite = localStorage.getItem("studbud-lite");
+    document.documentElement.classList.toggle(
+      "lite",
+      lite ? lite === "1" : navigator.connection ? navigator.connection.saveData === true : false,
+    );
   } catch {}
 })();`;
 
@@ -54,7 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: bootScript }} />
       </head>
       <body className="min-h-full flex flex-col">
         <div className="blueprint" aria-hidden="true">

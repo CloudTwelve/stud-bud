@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useAnimatedNumber } from "@/lib/motion";
 import type { ScoredSpace } from "@/lib/types";
 import { METRIC_ICON } from "./Icons";
 import Sparkline from "./Sparkline";
@@ -40,17 +44,53 @@ export function timeAgo(iso: string): string {
   return `${hours} h ago`;
 }
 
-export default function SpaceCard({ space }: { space: ScoredSpace }) {
+/** True for about a second after this room reports a sweep it hadn't before. */
+function useJustLanded(recordedAt: string): boolean {
+  const [landed, setLanded] = useState(false);
+  const previous = useRef(recordedAt);
+
+  useEffect(() => {
+    if (previous.current === recordedAt) return;
+    previous.current = recordedAt;
+    setLanded(true);
+    const timer = setTimeout(() => setLanded(false), 1200);
+    return () => clearTimeout(timer);
+  }, [recordedAt]);
+
+  return landed;
+}
+
+export default function SpaceCard({
+  space,
+  ref,
+}: {
+  space: ScoredSpace;
+  ref?: React.Ref<HTMLElement>;
+}) {
   const tone = scoreTone(space.verdict.score);
   const free = Math.max(0, space.latest.totalSeats - space.latest.occupiedSeats);
   const soundHistory = space.history.map((reading) => reading.sound);
+  const landed = useJustLanded(space.latest.recordedAt);
+  const score = Math.round(useAnimatedNumber(space.verdict.score));
 
   return (
     <article
-      className={`panel flex flex-col gap-5 p-5 transition hover:-translate-y-1 hover:border-line-strong sm:p-6 ${
+      ref={ref}
+      className={`panel relative isolate flex flex-col gap-5 overflow-hidden p-5 transition hover:-translate-y-1 hover:border-line-strong sm:p-6 ${
         space.stale ? "opacity-60 saturate-50" : ""
-      }`}
+      } ${landed ? "landed" : ""}`}
     >
+      {!space.stale && (
+        <div className="card-trace" aria-hidden="true">
+          <Sparkline
+            values={soundHistory}
+            gradientId={`trace-${space.id}`}
+            from="var(--brand)"
+            to="var(--accent)"
+            className="h-full w-full"
+          />
+        </div>
+      )}
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
@@ -79,7 +119,7 @@ export default function SpaceCard({ space }: { space: ScoredSpace }) {
           <p
             className={`text-5xl font-bold tabular-nums ${space.stale ? "opacity-40" : tone.label}`}
           >
-            {space.stale ? "—" : space.verdict.score}
+            {space.stale ? "—" : score}
           </p>
           <p className="text-sm font-medium">
             {space.stale ? "No recent sweep" : space.verdict.headline}
@@ -100,8 +140,8 @@ export default function SpaceCard({ space }: { space: ScoredSpace }) {
 
       <div className="h-2 w-full overflow-hidden bg-black/10 dark:bg-white/10">
         <div
-          className={`h-full bg-gradient-to-r ${tone.bar} transition-[width] duration-700`}
-          style={{ width: `${space.stale ? 0 : space.verdict.score}%` }}
+          className={`h-full bg-gradient-to-r ${tone.bar} transition-[width] duration-700 ease-out`}
+          style={{ width: `${space.stale ? 0 : score}%` }}
         />
       </div>
 

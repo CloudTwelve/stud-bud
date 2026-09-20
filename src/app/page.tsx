@@ -15,6 +15,7 @@ import {
   ThermometerIcon,
 } from "@/components/Icons";
 import Logo from "@/components/Logo";
+import LiteToggle from "@/components/LiteToggle";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
@@ -108,6 +109,7 @@ export default function HomePage() {
                 Live rooms
                 <ArrowIcon className="h-4 w-4 text-accent" />
               </Link>
+              <LiteToggle />
               <ThemeToggle />
             </div>
           </div>
@@ -149,6 +151,7 @@ export default function HomePage() {
             </a>
             <span className="text-xs opacity-50">
               Drag across the grid, or click it — it sweeps like the dog does.
+              On bad WiFi, hit Low-WiFi mode and it all holds still.
             </span>
           </div>
         </div>
@@ -302,7 +305,7 @@ export default function HomePage() {
           </h2>
           <p className="max-w-xl text-sm opacity-75">
             Live scores for every room the sensors reach, updated the instant a
-            sweep lands.
+            sweep lands. IHTFP is optional; a quiet room helps.
           </p>
           <Link
             href="/rooms"

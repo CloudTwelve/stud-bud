@@ -141,6 +141,23 @@ export function BoltIcon(props: IconProps) {
   );
 }
 
+export function WifiIcon(props: IconProps) {
+  return (
+    <Frame {...props}>
+      <path d="M3 8h18M6 13h12M10 18h4" />
+    </Frame>
+  );
+}
+
+export function WifiLowIcon(props: IconProps) {
+  return (
+    <Frame {...props}>
+      <path d="M10 18h4" />
+      <path d="M3 8h4M17 8h4M6 13h2M16 13h2" opacity="0.4" />
+    </Frame>
+  );
+}
+
 export const METRIC_ICON: Record<Metric, (props: IconProps) => React.ReactElement> = {
   temperature: ThermometerIcon,
   humidity: DropletIcon,
