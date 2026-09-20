@@ -122,7 +122,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/about"
+              href="/"
               className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
             >
               How it works
