@@ -18,7 +18,8 @@ import {
 } from "@/lib/prefs";
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
-import { ArrowIcon, BookIcon, DogIcon, SignalIcon } from "./Icons";
+import CampusMap from "./CampusMap";
+import { ArrowIcon, BookIcon, DogIcon, GridIcon, MapIcon, SignalIcon } from "./Icons";
 import LiteToggle from "./LiteToggle";
 import Logo from "./Logo";
 import Preferences from "./Preferences";
@@ -44,6 +45,7 @@ interface DashboardProps {
 export default function Dashboard({ initialSpaces }: DashboardProps) {
   const [spaces, setSpaces] = useState<Space[]>(initialSpaces);
   const [sort, setSort] = useState<SortKey>("score");
+  const [mapView, setMapView] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
@@ -182,7 +184,27 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                 {option.label}
               </button>
             ))}
-            <span className="ml-auto flex items-center gap-2 text-xs opacity-60">
+            <div className="ml-auto flex items-center gap-2">
+              <div className="panel-sm clip-tag flex items-center">
+                {[
+                  { map: false, label: "Cards", Icon: GridIcon },
+                  { map: true, label: "Map", Icon: MapIcon },
+                ].map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => setMapView(option.map)}
+                    aria-pressed={mapView === option.map}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition ${
+                      mapView === option.map ? "on-accent" : "opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <option.Icon className="h-3.5 w-3.5" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <span className="flex items-center gap-2 text-xs opacity-60">
               <span
                 className={`inline-block h-2 w-2 ${
                   error
@@ -200,7 +222,8 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                   : updatedAt
                     ? `Synced ${new Date(updatedAt).toLocaleTimeString()}`
                     : "Polling every 30s"}
-            </span>
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -232,17 +255,21 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         </div>
       </header>
 
-      <section className="grid gap-5 md:grid-cols-2 md:gap-6">
-        {sorted.map((space) => (
-          <SpaceCard key={space.id} space={space} ref={cardRef(space.id)} />
-        ))}
-        {sorted.length === 0 && (
-          <p className="opacity-60">
-            Waiting for the first sweep — the dog is probably tooling on
-            something else.
-          </p>
-        )}
-      </section>
+      {mapView ? (
+        <CampusMap spaces={sorted} />
+      ) : (
+        <section className="grid gap-5 md:grid-cols-2 md:gap-6">
+          {sorted.map((space) => (
+            <SpaceCard key={space.id} space={space} ref={cardRef(space.id)} />
+          ))}
+          {sorted.length === 0 && (
+            <p className="opacity-60">
+              Waiting for the first sweep — the dog is probably tooling on
+              something else.
+            </p>
+          )}
+        </section>
+      )}
 
       <footer className="panel p-5 text-sm sm:p-6">
         <p className="eyebrow">Ingest</p>
