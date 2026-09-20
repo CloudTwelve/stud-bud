@@ -85,7 +85,9 @@ never lost, they can just take up to half a minute to appear.
 
 ## 2. Arduino UNO Q — temperature, humidity, sound, light
 
-Create `/home/arduino/studbud.json` on the board (App Lab terminal):
+Create `studbud.json` next to the app, at
+`~/ArduinoApps/studbud_uno_q_app/python/studbud.json` (App Lab terminal, or the
+editor in App Lab itself):
 
 ```json
 {
@@ -112,6 +114,12 @@ first has to carry seats. So either:
 
 Don't invent a capacity you haven't counted; the seat number is the one on the
 card, and a judge can count chairs.
+
+The app prints `config: <path> -> <url>` at startup. If that line names a
+different file than the one you edited, or says `none found`, the app is not
+reading your config — the Python half runs in a container, so a file written to
+`/home/arduino` from a terminal isn't always the same file the app sees. It is
+read once at startup, so press Stop then Run after editing.
 
 Press **Run**. Two consoles tell you where you are:
 
