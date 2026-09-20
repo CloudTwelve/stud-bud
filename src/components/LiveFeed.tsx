@@ -8,6 +8,8 @@ const POLL_MS = 15000;
 /** Re-render the "last sweep" clock even when nothing new arrives. */
 const TICK_MS = 1000;
 const SILENT_AFTER_S = 120;
+/** Give up on a hung request so the next poll can take over. */
+const REQUEST_TIMEOUT_MS = 10000;
 /** A reading dated further ahead than this means the board's clock is wrong. */
 const SKEW_TOLERANCE_S = 60;
 
@@ -54,7 +56,10 @@ export default function LiveFeed({
       do {
         pending.current = false;
         try {
-          const response = await fetch("/api/readings", { cache: "no-store" });
+          const response = await fetch("/api/readings", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = (await response.json()) as { spaces: Space[] };
           setSpaces(data.spaces);
