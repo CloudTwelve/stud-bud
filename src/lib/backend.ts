@@ -4,6 +4,11 @@ import type { DatabaseSync } from "node:sqlite";
 import type { QueryResultRow } from "pg";
 import type { HourlyPoint, Metric, Reading } from "./types";
 
+/** A reading with the row identity needed to write it back. */
+export interface StoredReading extends Reading {
+  id: number;
+}
+
 export interface SpaceRow {
   id: string;
   name: string;
@@ -27,8 +32,16 @@ export interface Backend {
    * stored text compares instants.
    */
   readingBefore(id: string, recordedAt: string): Promise<Reading | undefined>;
+  /** Readings strictly after `recordedAt`, oldest first. */
+  readingsAfter(
+    id: string,
+    recordedAt: string,
+    limit: number,
+  ): Promise<StoredReading[]>;
   hourly(id: string, hours: number): Promise<HourlyPoint[]>;
   insertReading(reading: Reading): Promise<void>;
+  /** Rewrite one row in place; only carried values and their ages change. */
+  updateReading(rowId: number, reading: Reading): Promise<void>;
   insertReadings(readings: Reading[]): Promise<void>;
   isEmpty(): Promise<boolean>;
   /**
@@ -127,6 +140,7 @@ function canonicalTimestamp(value: string): string | null {
 }
 
 interface ReadingRow {
+  id: number | string;
   space_id: string;
   temperature: number;
   humidity: number;
@@ -153,6 +167,10 @@ const MEASURED_COLUMNS: [Metric, keyof ReadingRow][] = [
 
 function measuredColumns(reading: Reading): (string | null)[] {
   return MEASURED_COLUMNS.map(([metric]) => reading.measuredAt?.[metric] ?? null);
+}
+
+function toStored(row: ReadingRow): StoredReading {
+  return { ...toReading(row), id: Number(row.id) };
 }
 
 function toReading(row: ReadingRow): Reading {
@@ -284,6 +302,15 @@ function sqliteBackend(): Backend | null {
           .get(id, recordedAt) as unknown as ReadingRow | undefined;
         return row ? toReading(row) : undefined;
       },
+      readingsAfter: async (id, recordedAt, limit) =>
+        (
+          db
+            .prepare(
+              `SELECT * FROM readings WHERE space_id = ? AND recorded_at > ?
+               ORDER BY recorded_at ASC, id ASC LIMIT ?`,
+            )
+            .all(id, recordedAt, limit) as unknown as ReadingRow[]
+        ).map(toStored),
       hourly: async (id, hours) => {
         const since = new Date(
           Date.now() - hours * 60 * 60 * 1000,
@@ -307,6 +334,25 @@ function sqliteBackend(): Backend | null {
         return rows.map((row) => ({ ...row, hour: `${row.hour}:00:00.000Z` }));
       },
       insertReading: async (reading) => insert(reading),
+      updateReading: async (rowId, reading) =>
+        void db
+          .prepare(
+            `UPDATE readings SET
+               temperature = ?, humidity = ?, sound = ?, light = ?,
+               occupied_seats = ?, total_seats = ?, temperature_at = ?,
+               humidity_at = ?, sound_at = ?, light_at = ?, occupancy_at = ?
+             WHERE id = ?`,
+          )
+          .run(
+            reading.temperature,
+            reading.humidity,
+            reading.sound,
+            reading.light,
+            reading.occupiedSeats,
+            reading.totalSeats,
+            ...measuredColumns(reading),
+            rowId,
+          ),
       insertReadings: async (readings) => {
         db.exec("BEGIN");
         try {
@@ -453,6 +499,14 @@ async function postgresBackend(url: string): Promise<Backend | null> {
         );
         return rows[0] ? toReading(rows[0]) : undefined;
       },
+      readingsAfter: async (id, recordedAt, limit) =>
+        (
+          await query<ReadingRow>(
+            `SELECT * FROM readings WHERE space_id = $1 AND recorded_at > $2
+             ORDER BY recorded_at ASC, id ASC LIMIT $3`,
+            [id, recordedAt, limit],
+          )
+        ).map(toStored),
       hourly: async (id, hours) => {
         const since = new Date(
           Date.now() - hours * 60 * 60 * 1000,
@@ -507,6 +561,25 @@ async function postgresBackend(url: string): Promise<Backend | null> {
             reading.totalSeats,
             reading.recordedAt,
             ...measuredColumns(reading),
+          ],
+        );
+      },
+      updateReading: async (rowId, reading) => {
+        await query(
+          `UPDATE readings SET
+             temperature = $1, humidity = $2, sound = $3, light = $4,
+             occupied_seats = $5, total_seats = $6, temperature_at = $7,
+             humidity_at = $8, sound_at = $9, light_at = $10, occupancy_at = $11
+           WHERE id = $12`,
+          [
+            reading.temperature,
+            reading.humidity,
+            reading.sound,
+            reading.light,
+            reading.occupiedSeats,
+            reading.totalSeats,
+            ...measuredColumns(reading),
+            rowId,
           ],
         );
       },
@@ -586,12 +659,15 @@ async function postgresBackend(url: string): Promise<Backend | null> {
 
 function memoryBackend(): Backend {
   const spaces = new Map<string, SpaceRow>();
-  const readings = new Map<string, Reading[]>();
+  const readings = new Map<string, StoredReading[]>();
+  let nextId = 1;
 
   const insert = (reading: Reading) => {
     const list = readings.get(reading.spaceId) ?? [];
-    list.push(reading);
-    list.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+    list.push({ ...reading, id: nextId++ });
+    list.sort(
+      (a, b) => a.recordedAt.localeCompare(b.recordedAt) || a.id - b.id,
+    );
     readings.set(reading.spaceId, list);
   };
 
@@ -619,6 +695,10 @@ function memoryBackend(): Backend {
       (readings.get(id) ?? [])
         .filter((reading) => reading.recordedAt <= recordedAt)
         .pop(),
+    readingsAfter: async (id, recordedAt, limit) =>
+      (readings.get(id) ?? [])
+        .filter((reading) => reading.recordedAt > recordedAt)
+        .slice(0, limit),
     hourly: async (id, hours) => {
       const since = Date.now() - hours * 60 * 60 * 1000;
       const buckets = new Map<string, Reading[]>();
@@ -647,6 +727,11 @@ function memoryBackend(): Backend {
         }));
     },
     insertReading: async (reading) => insert(reading),
+    updateReading: async (rowId, reading) => {
+      const list = readings.get(reading.spaceId) ?? [];
+      const index = list.findIndex((row) => row.id === rowId);
+      if (index >= 0) list[index] = { ...reading, id: rowId };
+    },
     insertReadings: async (list) => {
       for (const reading of list) insert(reading);
     },
