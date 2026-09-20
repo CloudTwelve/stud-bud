@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
+import LiveFeed from "@/components/LiveFeed";
 import ThemeToggle from "@/components/ThemeToggle";
+import type { Space } from "@/lib/types";
 
 const SPACE_ID = "sensor-test-bench";
 
@@ -72,7 +74,7 @@ const START: Values = {
   light: "520",
 };
 
-export default function SensorTest() {
+export default function SensorTest({ initialSpaces }: { initialSpaces: Space[] }) {
   const [values, setValues] = useState<Values>(START);
   const [token, setToken] = useState("");
   const [sending, setSending] = useState(false);
@@ -156,7 +158,7 @@ export default function SensorTest() {
             Four numbers, no room to pick and no seat counts — exactly what a
             bare Arduino sends before you wire up people counting. Use it to
             prove your ingest token, your JSON and your calibration one at a
-            time.
+            time — then scroll down to watch the real board once it’s posting.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -293,6 +295,8 @@ export default function SensorTest() {
           )}
         </div>
       </section>
+
+      <LiveFeed preferredId={SPACE_ID} initialSpaces={initialSpaces} />
 
       <section className="card rounded-3xl p-5 sm:p-6">
         <h2 className="text-lg font-semibold">What the board has to do</h2>

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import SensorTest from "@/components/SensorTest";
+import { listSpaces } from "@/lib/store";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Sensor test bench · Stud-Bud",
@@ -8,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function TestPage() {
-  return <SensorTest />;
+  return <SensorTest initialSpaces={listSpaces()} />;
 }
