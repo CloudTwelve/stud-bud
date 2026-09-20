@@ -19,7 +19,7 @@ import {
   subscribeWeights,
 } from "@/lib/prefs";
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
-import type { ScoredSpace, Space } from "@/lib/types";
+import type { Metric, ScoredSpace, Space } from "@/lib/types";
 import CampusMap from "./CampusMap";
 import DemoDataNotice from "./DemoDataNotice";
 import {
@@ -122,13 +122,23 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
 
   const sorted = useMemo(() => {
     const copy = [...campus];
-    const rank = (space: ScoredSpace) => (space.stale ? -1 : 1);
+    // Sorting on one metric means sorting on that metric's freshness too: a
+    // dead microphone's last 20 dB would otherwise hold the top of "quietest".
+    const rank = (space: ScoredSpace, metric?: Metric) =>
+      space.stale ||
+      (metric !== undefined &&
+        (space.verdict.metrics.find((m) => m.metric === metric)?.stale ?? false))
+        ? -1
+        : 1;
     if (sort === "quiet") {
-      copy.sort((a, b) => rank(b) - rank(a) || a.latest.sound - b.latest.sound);
+      copy.sort(
+        (a, b) =>
+          rank(b, "sound") - rank(a, "sound") || a.latest.sound - b.latest.sound,
+      );
     } else if (sort === "free") {
       copy.sort(
         (a, b) =>
-          rank(b) - rank(a) ||
+          rank(b, "occupancy") - rank(a, "occupancy") ||
           b.latest.totalSeats -
             b.latest.occupiedSeats -
             (a.latest.totalSeats - a.latest.occupiedSeats),
