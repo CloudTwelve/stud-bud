@@ -3,6 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Space } from "@/lib/types";
+import {
+  ArrowIcon,
+  DropletIcon,
+  LightIcon,
+  SoundIcon,
+  ThermometerIcon,
+} from "./Icons";
 
 const POLL_MS = 15000;
 /** Re-render the "last sweep" clock even when nothing new arrives. */
@@ -21,10 +28,10 @@ function elapsed(seconds: number): string {
 }
 
 const READOUTS = [
-  { key: "temperature", label: "Temperature", unit: "°C", digits: 1 },
-  { key: "humidity", label: "Humidity", unit: "% RH", digits: 0 },
-  { key: "sound", label: "Noise", unit: "dB", digits: 0 },
-  { key: "light", label: "Light", unit: "lux", digits: 0 },
+  { key: "temperature", label: "Temperature", unit: "°C", digits: 1, icon: ThermometerIcon },
+  { key: "humidity", label: "Humidity", unit: "% RH", digits: 0, icon: DropletIcon },
+  { key: "sound", label: "Noise", unit: "dB", digits: 0, icon: SoundIcon },
+  { key: "light", label: "Light", unit: "lux", digits: 0, icon: LightIcon },
 ] as const;
 
 export default function LiveFeed({
@@ -107,7 +114,7 @@ export default function LiveFeed({
   const silent = seconds !== null && (seconds > SILENT_AFTER_S || skewed);
 
   return (
-    <section className="card rounded-3xl p-5 sm:p-6">
+    <section className="panel p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Live from the hardware</h2>
@@ -119,14 +126,14 @@ export default function LiveFeed({
         </div>
         <span className="flex items-center gap-2 text-xs font-medium">
           <span
-            className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-400" : "bg-slate-400"}`}
+            className={`h-2 w-2 ${connected ? "animate-pulse bg-[var(--brand)]" : "bg-slate-400"}`}
           />
           {connected ? "stream open" : "stream closed"}
         </span>
       </div>
 
       {error && (
-        <p className="mt-4 rounded-2xl bg-rose-400/10 px-4 py-3 text-sm text-rose-500">
+        <p className="clip-tag mt-4 bg-rose-500/10 px-4 py-3 text-sm text-rose-500">
           Can&apos;t reach the server ({error}). The board can&apos;t either, then.
         </p>
       )}
@@ -137,7 +144,7 @@ export default function LiveFeed({
           <select
             value={space?.id ?? ""}
             onChange={(event) => setSelected(event.target.value)}
-            className="rounded-2xl border border-[var(--surface-border)] bg-transparent px-4 py-2 text-sm outline-none focus:border-fuchsia-400"
+            className="clip-tag border border-line bg-transparent px-4 py-2 text-sm outline-none focus:border-[var(--accent)]"
           >
             {spaces.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
@@ -159,8 +166,9 @@ export default function LiveFeed({
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-4">
             {READOUTS.map((readout) => (
-              <div key={readout.key} className="rounded-2xl bg-black/5 p-4 dark:bg-white/5">
-                <p className="text-xs uppercase tracking-[0.15em] opacity-60">
+              <div key={readout.key} className="clip-tag bg-[var(--surface-muted)] p-4">
+                <p className="flex items-center gap-2 text-xs uppercase tracking-[0.15em] opacity-60">
+                  <readout.icon className="h-3.5 w-3.5 text-brand" />
                   {readout.label}
                 </p>
                 <p className="mt-1 font-mono text-2xl font-semibold">
@@ -174,7 +182,7 @@ export default function LiveFeed({
           <p className="mt-4 text-sm">
             {/* Rendered from `now`, which is null until the first tick, so the
                 server and the first client render agree. */}
-            <span className={silent ? "text-amber-500" : "opacity-75"}>
+            <span className={silent ? "text-[color:var(--accent)]" : "opacity-75"}>
               {seconds === null
                 ? "Checking the last sweep…"
                 : skewed
@@ -190,15 +198,16 @@ export default function LiveFeed({
             )}{" "}
             <Link
               href={`/space/${space.id}`}
-              className="underline decoration-fuchsia-400 underline-offset-4"
+              className="inline-flex items-center gap-1 underline decoration-[var(--accent)] decoration-2 underline-offset-4"
             >
-              full history →
+              full history
+              <ArrowIcon className="h-3.5 w-3.5 text-accent" />
             </Link>
           </p>
 
           {silent && (
-            <div className="mt-4 rounded-2xl bg-amber-400/10 px-4 py-3 text-sm">
-              <p className="font-medium text-amber-600 dark:text-amber-400">
+            <div className="clip-tag mt-4 bg-[var(--accent)]/10 px-4 py-3 text-sm">
+              <p className="font-medium text-[color:var(--accent)]">
                 {skewed
                   ? "Can't tell how old this is — the board dated it in the future."
                   : "Nothing new for over two minutes — these numbers are history, not the room."}

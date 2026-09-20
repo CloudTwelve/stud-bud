@@ -36,8 +36,8 @@ export default function Sparkline({ values, gradientId, from, to }: SparklinePro
         fill="none"
         stroke={`url(#${gradientId})`}
         strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinecap="square"
+        strokeLinejoin="miter"
       />
     </svg>
   );

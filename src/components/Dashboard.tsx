@@ -17,6 +17,7 @@ import {
 } from "@/lib/prefs";
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
+import { ArrowIcon, BookIcon, DogIcon, SignalIcon } from "./Icons";
 import Preferences from "./Preferences";
 import SpaceCard from "./SpaceCard";
 import ThemeToggle from "./ThemeToggle";
@@ -109,11 +110,12 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
       <header className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-60">
+            <p className="eyebrow">
+              <DogIcon className="h-4 w-4" />
               HackMIT · Arduino + robot dog
             </p>
-            <h1 className="mt-2 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-sky-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-6xl">
-              Stud-Bud
+            <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl">
+              Stud<span className="text-accent">-</span>Bud
             </h1>
             <p className="mt-3 max-w-xl text-sm opacity-75 sm:text-base">
               Live temperature, humidity, noise, light and seat counts from every
@@ -123,14 +125,16 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
           <div className="flex items-center gap-2">
             <Link
               href="/"
-              className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
+              className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
             >
+              <BookIcon className="h-4 w-4 text-brand" />
               How it works
             </Link>
             <Link
               href="/test"
-              className="card rounded-full px-4 py-2 text-sm font-medium transition hover:scale-[1.02]"
+              className="panel-sm clip-tag flex items-center gap-2 px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
             >
+              <SignalIcon className="h-4 w-4 text-brand" />
               Test bench
             </Link>
             <ThemeToggle />
@@ -140,14 +144,13 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         {best && (
           <Link
             href={`/space/${best.id}`}
-            className="card block rounded-3xl p-5 transition hover:-translate-y-0.5 sm:p-6"
+            className="panel rise block border-l-2 border-l-[var(--accent)] p-5 transition hover:-translate-y-0.5 hover:border-line-strong sm:p-6"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] opacity-60">
-              Go here right now
-            </p>
-            <p className="mt-2 text-xl font-semibold sm:text-2xl">
+            <p className="eyebrow">Go here right now</p>
+            <p className="mt-2 flex items-center gap-2 text-xl font-semibold sm:text-2xl">
               {best.name}{" "}
               <span className="text-base font-normal opacity-50">{best.building}</span>
+              <ArrowIcon className="h-4 w-4 text-accent" />
             </p>
             <p className="mt-1 text-sm opacity-80">{best.verdict.summary}</p>
           </Link>
@@ -164,10 +167,10 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
                   if (option.key === "personalized") setShowPrefs(true);
                 }}
                 aria-pressed={sort === option.key}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                className={`clip-tag px-4 py-2 text-sm font-medium transition ${
                   sort === option.key
-                    ? "bg-gradient-to-r from-fuchsia-400 to-sky-400 text-white shadow"
-                    : "card hover:scale-[1.02]"
+                    ? "on-accent"
+                    : "panel-sm hover:-translate-y-0.5 hover:border-line-strong"
                 }`}
               >
                 {option.label}
@@ -175,8 +178,12 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
             ))}
             <span className="ml-auto flex items-center gap-2 text-xs opacity-60">
               <span
-                className={`inline-block h-2 w-2 rounded-full ${
-                  error ? "bg-rose-400" : live ? "bg-emerald-400" : "bg-amber-400"
+                className={`inline-block h-2 w-2 ${
+                  error
+                    ? "bg-rose-500"
+                    : live
+                      ? "bg-[var(--brand)]"
+                      : "bg-[var(--accent)]"
                 }`}
                 aria-hidden="true"
               />
@@ -195,7 +202,7 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
               type="button"
               onClick={() => setShowPrefs((open) => !open)}
               aria-expanded={showPrefs}
-              className="card rounded-full px-3 py-1.5 text-xs font-medium transition hover:scale-[1.02]"
+              className="panel-sm clip-tag px-3 py-1.5 text-xs font-medium transition hover:-translate-y-0.5 hover:border-line-strong"
             >
               {showPrefs ? "Hide preferences" : "Set your preferences"}
             </button>
@@ -228,14 +235,15 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         )}
       </section>
 
-      <footer className="card rounded-3xl p-5 text-sm sm:p-6">
-        <p className="font-semibold">Feeding data in from the hardware</p>
+      <footer className="panel p-5 text-sm sm:p-6">
+        <p className="eyebrow">Ingest</p>
+        <p className="mt-2 font-semibold">Feeding data in from the hardware</p>
         <p className="mt-1 opacity-75">
           The Arduino and robot dog POST one JSON payload per sweep (send{" "}
           <code className="font-mono text-xs">Authorization: Bearer $STUDBUD_INGEST_TOKEN</code>{" "}
           when the server has a token configured):
         </p>
-        <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/80 p-4 font-mono text-xs text-fuchsia-100">
+        <pre className="clip-tag mt-3 overflow-x-auto bg-[var(--code-bg)] p-4 font-mono text-xs text-[color:var(--brand-soft)]">
 {`POST /api/readings
 {
   "spaceId": "hayden-reading-room",
