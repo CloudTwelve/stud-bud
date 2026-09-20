@@ -18,6 +18,7 @@ import {
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
 import { ArrowIcon, BookIcon, DogIcon, SignalIcon } from "./Icons";
+import Logo from "./Logo";
 import Preferences from "./Preferences";
 import SpaceCard from "./SpaceCard";
 import ThemeToggle from "./ThemeToggle";
@@ -114,8 +115,8 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
               <DogIcon className="h-4 w-4" />
               HackMIT · Arduino + robot dog
             </p>
-            <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl">
-              Stud<span className="text-accent">-</span>Bud
+            <h1 className="mt-3">
+              <Logo className="h-10 sm:h-14" />
             </h1>
             <p className="mt-3 max-w-xl text-sm opacity-75 sm:text-base">
               Live temperature, humidity, noise, light and seat counts from every

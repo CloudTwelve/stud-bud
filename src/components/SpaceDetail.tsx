@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { HourlyPoint, ScoredSpace } from "@/lib/types";
 import { ArrowIcon } from "./Icons";
+import Logo from "./Logo";
 import SpaceCard, { timeAgo } from "./SpaceCard";
 import ThemeToggle from "./ThemeToggle";
 import TrendChart from "./TrendChart";
@@ -44,9 +45,12 @@ export default function SpaceDetail({ initial }: { initial: DetailPayload }) {
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-14">
       <div className="flex items-start justify-between gap-4">
         <div>
+          <Link href="/" className="inline-flex" aria-label="Stud-Bud home">
+            <Logo className="h-6" />
+          </Link>
           <Link
             href="/rooms"
-            className="flex items-center gap-2 text-sm opacity-60 hover:opacity-100"
+            className="mt-3 flex items-center gap-2 text-sm opacity-60 hover:opacity-100"
           >
             <ArrowIcon className="h-4 w-4 rotate-180 text-accent" />
             All rooms
