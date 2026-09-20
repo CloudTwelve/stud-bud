@@ -28,9 +28,9 @@ def load_config() -> dict:
     config = {
         "url": "http://192.168.1.42:3000/api/readings",
         "token": "",
-        "spaceId": "hayden-reading-room",
-        "name": "Hayden Reading Room",
-        "building": "Building 14",
+        "spaceId": "stud-5-lounge",
+        "name": "Stud 5 Lounge",
+        "building": "W20",
         # Leave seats out entirely when this node does not count people: the
         # dashboard keeps whatever the robot dog last reported for the room.
         "totalSeats": None,
