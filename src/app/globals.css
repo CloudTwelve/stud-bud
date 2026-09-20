@@ -280,11 +280,27 @@ h3 {
   mask-image: linear-gradient(to top, #000, transparent);
 }
 
+/* Marks the one room on the map that is real hardware. */
+.map-live-pip {
+  animation: map-live-pip 2s ease-in-out infinite;
+}
+
+@keyframes map-live-pip {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .blueprint span,
   .rise,
   .landed-a,
-  .landed-b {
+  .landed-b,
+  .map-live-pip {
     animation: none;
   }
 }
