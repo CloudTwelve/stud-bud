@@ -56,9 +56,25 @@ Create `/home/arduino/studbud.json` on the board (App Lab terminal):
   "token": "",
   "spaceId": "stud-5-lounge",
   "name": "Stud 5 Lounge",
-  "building": "W20"
+  "building": "W20",
+  "occupiedSeats": 0,
+  "totalSeats": 18
 }
 ```
+
+Those two seat numbers matter for the **first** post only. The server keeps a
+room's last known seat count when a sweep omits seats, but a room it has never
+seen has nothing to keep, so an environmental-only POST that creates a room is
+rejected with `400` naming `occupiedSeats`. Whichever of the two devices posts
+first has to carry seats. So either:
+
+- put the lounge's real capacity in `studbud.json` as above (and let the dog
+  correct the occupied count from its first sweep onward), or
+- delete both seat lines and let the dog post first — the board's later
+  environmental-only sweeps then inherit the dog's counts.
+
+Don't invent a capacity you haven't counted; the seat number is the one on the
+card, and a judge can count chairs.
 
 Press **Run**. Two consoles tell you where you are:
 
@@ -104,8 +120,10 @@ Swap `6` for whatever your seat detection counts, and run it on each sweep.
 carry-forward, exactly like the seat fields already work (~20 lines). Then the
 dog posts `{spaceId, occupiedSeats, totalSeats}` and nothing else.
 
-Until the dog posts once, the tab shows the room with no seat count rather than
-a guess.
+If the dog posts before the board, include the environmental fields from its
+own first sweep or hardcode nothing — post the board's numbers once by hand
+instead. Either way the room exists after one successful POST and both devices
+can then omit whatever they don't measure.
 
 ## 4. Checks and fallbacks
 
@@ -116,7 +134,9 @@ curl -s http://localhost:3000/api/readings | python3 -m json.tool | head -40
 
 - **Room appears on the wrong tab** → the `spaceId` isn't `stud-5-lounge`.
 - **`401`** → server has a token, your POST doesn't (or they differ).
-- **`400`** → a field is missing or not a number; the response body says which.
+- **`400` naming `occupiedSeats`** → the room doesn't exist yet and the post
+  carried no seats; see the seat note in step 2.
+- **`400`** otherwise → a field is missing or not a number; the body says which.
 - **Tab says "Stale"** → nothing has posted for a while; the numbers are kept
   but explicitly distrusted rather than shown as current.
 - **Hardware dies mid-demo** → the Cards and Map tabs are unaffected; they're
