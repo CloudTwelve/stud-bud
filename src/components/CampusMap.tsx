@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { layoutCampus, PLAN, scoreFill } from "@/lib/campus";
+import { isDemoSpace } from "@/lib/demo";
 import { LIVE_SPACE } from "@/lib/live";
 import { useStill } from "@/lib/motion";
 import type { ScoredSpace } from "@/lib/types";
@@ -331,7 +332,9 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
                 {active.building}
                 {active.id === LIVE_SPACE.id
                   ? " \u00b7 live hardware"
-                  : " \u00b7 example data"}
+                  : isDemoSpace(active.id)
+                    ? " \u00b7 example data"
+                    : ""}
               </p>
             </div>
             <p className="text-4xl font-semibold tabular-nums">

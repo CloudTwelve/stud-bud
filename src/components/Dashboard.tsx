@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { isDemoSpace } from "@/lib/demo";
 import { LIVE_SPACE } from "@/lib/live";
 import { useReorderAnimation } from "@/lib/motion";
 import {
@@ -286,7 +287,9 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         </div>
       </header>
 
-      {view !== "live" && <DemoDataNotice />}
+      {view !== "live" && sorted.some((space) => isDemoSpace(space.id)) && (
+        <DemoDataNotice />
+      )}
 
       {view === "live" ? (
         <LiveRoom space={liveSpace} />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { LIVE_SPACE } from "@/lib/live";
+import { isDemoSpace } from "@/lib/demo";
 import type { HourlyPoint, ScoredSpace } from "@/lib/types";
 import DemoDataNotice from "./DemoDataNotice";
 import { ArrowIcon } from "./Icons";
@@ -64,7 +64,7 @@ export default function SpaceDetail({ initial }: { initial: DetailPayload }) {
           <p className="mt-1 text-sm opacity-70">
             {space.building} · last sweep {timeAgo(space.latest.recordedAt)}
           </p>
-          {space.id !== LIVE_SPACE.id && (
+          {isDemoSpace(space.id) && (
             <div className="mt-2">
               <DemoDataNotice compact />
             </div>
