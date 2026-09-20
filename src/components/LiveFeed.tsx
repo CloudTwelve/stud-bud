@@ -1,13 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Space } from "@/lib/types";
-import { timeAgo } from "./SpaceCard";
 
 const POLL_MS = 15000;
 /** Re-render the "last sweep" clock even when nothing new arrives. */
 const TICK_MS = 1000;
+const SILENT_AFTER_S = 120;
+/** A reading dated further ahead than this means the board's clock is wrong. */
+const SKEW_TOLERANCE_S = 60;
+
+function elapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.round(minutes / 60)} h ago`;
+}
 
 const READOUTS = [
   { key: "temperature", label: "Temperature", unit: "°C", digits: 1 },
@@ -28,15 +37,21 @@ export default function LiveFeed({
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [now, setNow] = useState<number | null>(null);
+  const latestRequest = useRef(0);
 
+  // The poll and the stream both trigger loads, so responses can land out of
+  // order; only the newest one is allowed to write.
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     try {
       const response = await fetch("/api/readings", { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = (await response.json()) as { spaces: Space[] };
+      if (request !== latestRequest.current) return;
       setSpaces(data.spaces);
       setError(null);
     } catch (cause) {
+      if (request !== latestRequest.current) return;
       setError(cause instanceof Error ? cause.message : "failed to reach the server");
     }
   }, []);
@@ -70,7 +85,9 @@ export default function LiveFeed({
     space && now !== null
       ? Math.round((now - new Date(space.latest.recordedAt).getTime()) / 1000)
       : null;
-  const silent = seconds !== null && seconds > 120;
+  // A board whose clock runs ahead would otherwise look permanently fresh.
+  const skewed = seconds !== null && seconds < -SKEW_TOLERANCE_S;
+  const silent = seconds !== null && (seconds > SILENT_AFTER_S || skewed);
 
   return (
     <section className="card rounded-3xl p-5 sm:p-6">
@@ -138,9 +155,14 @@ export default function LiveFeed({
           </div>
 
           <p className="mt-4 text-sm">
+            {/* Rendered from `now`, which is null until the first tick, so the
+                server and the first client render agree. */}
             <span className={silent ? "text-amber-500" : "opacity-75"}>
-              Last sweep {timeAgo(space.latest.recordedAt)}
-              {seconds !== null && seconds < 120 ? ` (${seconds}s)` : ""}
+              {seconds === null
+                ? "Checking the last sweep…"
+                : skewed
+                  ? "Last sweep is dated in the future — the board's clock is wrong"
+                  : `Last sweep ${elapsed(Math.max(0, seconds))}`}
             </span>
             {space.latest.totalSeats > 0 && (
               <span className="opacity-75">
@@ -160,8 +182,9 @@ export default function LiveFeed({
           {silent && (
             <div className="mt-4 rounded-2xl bg-amber-400/10 px-4 py-3 text-sm">
               <p className="font-medium text-amber-600 dark:text-amber-400">
-                Nothing new for over two minutes — these numbers are history, not
-                the room.
+                {skewed
+                  ? "Can't tell how old this is — the board dated it in the future."
+                  : "Nothing new for over two minutes — these numbers are history, not the room."}
               </p>
               <ul className="mt-2 list-disc space-y-1 pl-5 opacity-80">
                 <li>
@@ -176,6 +199,11 @@ export default function LiveFeed({
                   App Lab&apos;s Python console should print <code>post: 201</code>{" "}
                   about once a minute. <code>401</code> means the token
                   doesn&apos;t match <code>STUDBUD_INGEST_TOKEN</code>.
+                </li>
+                <li>
+                  If the board sends its own <code>recordedAt</code>, its clock
+                  has to be roughly right — leave the field out and the server
+                  timestamps the sweep on arrival.
                 </li>
               </ul>
             </div>
