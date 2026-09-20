@@ -1,15 +1,12 @@
 import { backend } from "./backend";
 import { READING_RECORDED, readingEvents } from "./events";
+import { isStale } from "./freshness";
 import { seedIfEmpty } from "./seed";
-import type { HourlyPoint, Reading, Space } from "./types";
+import type { HourlyPoint, Metric, Space } from "./types";
 
 const HISTORY_POINTS = 48;
-export const STALE_AFTER_MINUTES = 45;
 
-export function isStale(reading: Reading): boolean {
-  const age = Date.now() - Date.parse(reading.recordedAt);
-  return !Number.isFinite(age) || age > STALE_AFTER_MINUTES * 60 * 1000;
-}
+export { STALE_AFTER_MINUTES, isMetricStale, isStale } from "./freshness";
 
 async function assemble(row: {
   id: string;
@@ -97,6 +94,16 @@ type CarriedField =
   | "occupiedSeats"
   | "totalSeats";
 
+/** Which metric's age a carried field belongs to; seats share one clock. */
+const FIELD_METRIC: Record<CarriedField, Metric> = {
+  temperature: "temperature",
+  humidity: "humidity",
+  sound: "sound",
+  light: "light",
+  occupiedSeats: "occupancy",
+  totalSeats: "occupancy",
+};
+
 /** A sweep with nothing recorded before it has nothing to carry forward, so
  *  it has to be complete. */
 export class IncompleteFirstReadingError extends Error {
@@ -133,13 +140,22 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
   // must not copy later measurements into earlier history.
   const previous = await store.readingBefore(payload.spaceId, recordedAt);
   const missing: CarriedField[] = [];
+  // A carried value keeps the age it had: one live sensor must not make the
+  // dead one next to it look like it just reported.
+  const measuredAt: Partial<Record<Metric, string>> = {};
   const carry = (field: CarriedField): number => {
-    const value = payload[field] ?? previous?.[field];
-    if (value === undefined) {
+    const metric = FIELD_METRIC[field];
+    const value = payload[field];
+    if (value !== undefined) {
+      measuredAt[metric] = recordedAt;
+      return value;
+    }
+    if (previous === undefined) {
       missing.push(field);
       return 0;
     }
-    return value;
+    measuredAt[metric] ??= previous.measuredAt?.[metric] ?? previous.recordedAt;
+    return previous[field];
   };
   const carried = {
     temperature: carry("temperature"),
@@ -169,6 +185,7 @@ export async function recordReading(payload: IngestPayload): Promise<Space> {
     spaceId: payload.spaceId,
     ...carried,
     recordedAt,
+    measuredAt,
   });
 
   const space = await getSpace(payload.spaceId);

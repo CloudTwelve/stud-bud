@@ -350,11 +350,22 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
               {active.verdict.metrics.map((metric) => {
                 const Icon = METRIC_ICON[metric.metric];
                 return (
-                <div key={metric.metric} className="panel-sm flex items-center gap-2 p-2">
+                <div
+                  key={metric.metric}
+                  className="panel-sm flex items-center gap-2 p-2"
+                  title={metric.comment}
+                >
                   <Icon className="h-4 w-4 text-brand" />
                   <div>
-                    <dt className="text-[0.65rem] uppercase opacity-50">{metric.label}</dt>
-                    <dd className="font-medium tabular-nums">{metric.value}</dd>
+                    <dt className="text-[0.65rem] uppercase opacity-50">
+                      {metric.label}
+                      {metric.stale && " · no signal"}
+                    </dt>
+                    <dd
+                      className={`font-medium tabular-nums ${metric.stale ? "line-through opacity-40" : ""}`}
+                    >
+                      {metric.value}
+                    </dd>
                   </div>
                 </div>
                 );

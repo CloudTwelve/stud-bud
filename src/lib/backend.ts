@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { QueryResultRow } from "pg";
-import type { HourlyPoint, Reading } from "./types";
+import type { HourlyPoint, Metric, Reading } from "./types";
 
 export interface SpaceRow {
   id: string;
@@ -66,7 +66,12 @@ const SQLITE_SCHEMA = `
     light REAL NOT NULL,
     occupied_seats INTEGER NOT NULL,
     total_seats INTEGER NOT NULL,
-    recorded_at TEXT NOT NULL
+    recorded_at TEXT NOT NULL,
+    temperature_at TEXT,
+    humidity_at TEXT,
+    sound_at TEXT,
+    light_at TEXT,
+    occupancy_at TEXT
   );
   CREATE INDEX IF NOT EXISTS readings_space_time
     ON readings (space_id, recorded_at DESC);
@@ -87,8 +92,20 @@ const POSTGRES_SCHEMA = `
     light DOUBLE PRECISION NOT NULL,
     occupied_seats INTEGER NOT NULL,
     total_seats INTEGER NOT NULL,
-    recorded_at TEXT NOT NULL
+    recorded_at TEXT NOT NULL,
+    temperature_at TEXT,
+    humidity_at TEXT,
+    sound_at TEXT,
+    light_at TEXT,
+    occupancy_at TEXT
   );
+  -- Tables created before per-metric timestamps existed. Null means "as old as
+  -- the row", which is what those rows meant anyway.
+  ALTER TABLE readings ADD COLUMN IF NOT EXISTS temperature_at TEXT;
+  ALTER TABLE readings ADD COLUMN IF NOT EXISTS humidity_at TEXT;
+  ALTER TABLE readings ADD COLUMN IF NOT EXISTS sound_at TEXT;
+  ALTER TABLE readings ADD COLUMN IF NOT EXISTS light_at TEXT;
+  ALTER TABLE readings ADD COLUMN IF NOT EXISTS occupancy_at TEXT;
   CREATE INDEX IF NOT EXISTS readings_space_time
     ON readings (space_id, recorded_at DESC);
   CREATE TABLE IF NOT EXISTS seed_state (
@@ -118,9 +135,32 @@ interface ReadingRow {
   occupied_seats: number;
   total_seats: number;
   recorded_at: string;
+  temperature_at: string | null;
+  humidity_at: string | null;
+  sound_at: string | null;
+  light_at: string | null;
+  occupancy_at: string | null;
+}
+
+/** Metric to its `*_at` column, in the order every statement below lists them. */
+const MEASURED_COLUMNS: [Metric, keyof ReadingRow][] = [
+  ["temperature", "temperature_at"],
+  ["humidity", "humidity_at"],
+  ["sound", "sound_at"],
+  ["light", "light_at"],
+  ["occupancy", "occupancy_at"],
+];
+
+function measuredColumns(reading: Reading): (string | null)[] {
+  return MEASURED_COLUMNS.map(([metric]) => reading.measuredAt?.[metric] ?? null);
 }
 
 function toReading(row: ReadingRow): Reading {
+  const measuredAt: Partial<Record<Metric, string>> = {};
+  for (const [metric, column] of MEASURED_COLUMNS) {
+    const value = row[column];
+    if (typeof value === "string") measuredAt[metric] = value;
+  }
   return {
     spaceId: row.space_id,
     temperature: Number(row.temperature),
@@ -130,6 +170,7 @@ function toReading(row: ReadingRow): Reading {
     occupiedSeats: Number(row.occupied_seats),
     totalSeats: Number(row.total_seats),
     recordedAt: row.recorded_at,
+    measuredAt,
   };
 }
 
@@ -145,6 +186,18 @@ function sqliteBackend(): Backend | null {
     const db = new sqlite.DatabaseSync(DB_PATH);
     db.exec("PRAGMA journal_mode = WAL");
     db.exec(SQLITE_SCHEMA);
+    // SQLite has no ADD COLUMN IF NOT EXISTS, so an existing local database
+    // gets the per-metric timestamp columns added one at a time.
+    const columns = new Set(
+      (db.prepare("PRAGMA table_info(readings)").all() as unknown as {
+        name: string;
+      }[]).map((column) => column.name),
+    );
+    for (const [, column] of MEASURED_COLUMNS) {
+      if (!columns.has(column)) {
+        db.exec(`ALTER TABLE readings ADD COLUMN ${column} TEXT`);
+      }
+    }
 
     // Rows written before timestamps were canonicalised may carry an offset,
     // and `recorded_at` is compared as text.
@@ -164,8 +217,10 @@ function sqliteBackend(): Backend | null {
       void db
         .prepare(
           `INSERT INTO readings
-             (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (space_id, temperature, humidity, sound, light, occupied_seats,
+              total_seats, recorded_at, temperature_at, humidity_at, sound_at,
+              light_at, occupancy_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           reading.spaceId,
@@ -176,6 +231,7 @@ function sqliteBackend(): Backend | null {
           reading.occupiedSeats,
           reading.totalSeats,
           reading.recordedAt,
+          ...measuredColumns(reading),
         );
 
     const isEmpty = async () =>
@@ -437,8 +493,10 @@ async function postgresBackend(url: string): Promise<Backend | null> {
       insertReading: async (reading) => {
         await query(
           `INSERT INTO readings
-             (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+             (space_id, temperature, humidity, sound, light, occupied_seats,
+              total_seats, recorded_at, temperature_at, humidity_at, sound_at,
+              light_at, occupancy_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             reading.spaceId,
             reading.temperature,
@@ -448,11 +506,13 @@ async function postgresBackend(url: string): Promise<Backend | null> {
             reading.occupiedSeats,
             reading.totalSeats,
             reading.recordedAt,
+            ...measuredColumns(reading),
           ],
         );
       },
       insertReadings: async (readings) => {
         if (readings.length === 0) return;
+        const width = 13;
         const values: unknown[] = [];
         const tuples = readings.map((reading, index) => {
           values.push(
@@ -464,13 +524,20 @@ async function postgresBackend(url: string): Promise<Backend | null> {
             reading.occupiedSeats,
             reading.totalSeats,
             reading.recordedAt,
+            ...measuredColumns(reading),
           );
-          const base = index * 8;
-          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+          const base = index * width;
+          const slots = Array.from(
+            { length: width },
+            (_, offset) => `$${base + offset + 1}`,
+          );
+          return `(${slots.join(", ")})`;
         });
         await query(
           `INSERT INTO readings
-             (space_id, temperature, humidity, sound, light, occupied_seats, total_seats, recorded_at)
+             (space_id, temperature, humidity, sound, light, occupied_seats,
+              total_seats, recorded_at, temperature_at, humidity_at, sound_at,
+              light_at, occupancy_at)
            VALUES ${tuples.join(", ")}`,
           values,
         );
