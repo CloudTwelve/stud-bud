@@ -16,7 +16,10 @@
 #include <DHT.h>
 
 #define DHT_PIN 2
-#define DHT_TYPE DHT22
+// DHT11 (blue body) and DHT22 (white body) share a wire protocol but not an
+// encoding, so the wrong one here decodes into confident nonsense - 307C, 3807%
+// RH - rather than failing. Set it to the part you actually have.
+#define DHT_TYPE DHT11
 #define MIC_PIN A0
 
 // Sound calibration: swing is the peak-to-peak ADC count over one second.

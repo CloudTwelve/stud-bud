@@ -5,7 +5,7 @@ light on the UNO Q's microcontroller and posts a sweep to the Stud-Bud
 dashboard from the board's Linux side — no bridge laptop, no WiFi shield.
 
 ```
-sketch/sketch.ino   MCU (STM32U585): DHT22 + Modulino Light + mic, one sample every 2 s
+sketch/sketch.ino   MCU (STM32U585): DHT + Modulino Light + mic, one sample every 2 s
 python/main.py      Linux (QRB2210): averages samples, POSTs /api/readings once a minute
 ```
 
@@ -19,7 +19,7 @@ power every sensor from `3V3`, never from `5V`.
 
 ```
 Modulino Light  Qwiic cable -> the board's Qwiic socket (no soldering, no pins)
-DHT22           data -> D2      (10 kΩ between data and 3V3)
+DHT11/DHT22     data -> D2      (10 kΩ between data and 3V3)
                 VCC  -> 3V3, GND -> GND
 MAX4466         OUT  -> A0
                 VCC  -> 3V3, GND -> GND
@@ -60,8 +60,8 @@ both when you press Run. You never drag a `.hex` file anywhere.
 5. **Plug the sensors in** as in the wiring block above. Do this with the board
    powered off if you're moving jumper wires; the Qwiic cable is safe to plug in
    live.
-6. **Create `/home/arduino/studbud.json`** on the board (step below) so the
-   Python side knows where to POST.
+6. **Create `python/studbud.json`** in the app (step below) so the Python side
+   knows where to POST.
 7. **Press Run.** App Lab compiles the sketch, loads it onto the STM32
    microcontroller, and starts `python/main.py` on the Linux side. Expect
    30–60 s the first time.
@@ -138,7 +138,9 @@ One app per room: give each board its own `spaceId`.
 | `Library install failed: ... lookup downloads.arduino.cc` | the board has no working DNS; put it on a phone hotspot |
 | `Modulino Light not found` | Qwiic cable not seated, or plugged into a Modulino's *output* socket |
 | `lux=nan` forever | the node answered `begin()` but `update()` keeps failing — reseat the cable |
-| `t=nan h=nan` | DHT22 pull-up resistor missing, or data on the wrong pin |
+| `t=nan h=nan` | DHT pull-up resistor missing, or data on the wrong pin |
+| `t=307.40 h=3807.00` or similar nonsense | `DHT_TYPE` doesn't match the part: blue body is `DHT11`, white is `DHT22` |
+| `skipping sample: temperature=... is outside` | the same thing, caught before it reaches the dashboard |
 | dB barely moves | mic gain pot turned down, or `OUT` not on A0 |
 | Monitor fine, no `post:` | wrong URL/IP, server not running, or laptop firewall |
 | `post failed: ...timed out` with a URL you never set | the config wasn't found — check the `config:` line printed at startup |
