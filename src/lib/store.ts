@@ -91,11 +91,24 @@ export class MissingEnvironmentError extends Error {
   }
 }
 
+/**
+ * Latest reading at or before `recordedAt`, so a backdated sweep carries
+ * forward the values that were current then rather than later ones.
+ */
+function readingBefore(spaceId: string, recordedAt: string | undefined): Reading | undefined {
+  const history = backend().history(spaceId, HISTORY_POINTS);
+  const at = recordedAt ? Date.parse(recordedAt) : Number.POSITIVE_INFINITY;
+  const cutoff = Number.isFinite(at) ? at : Number.POSITIVE_INFINITY;
+  return (
+    history.filter((reading) => Date.parse(reading.recordedAt) <= cutoff).pop() ?? history[0]
+  );
+}
+
 export function recordReading(payload: IngestPayload): Space {
   seedIfEmpty();
   const store = backend();
 
-  const previous = store.history(payload.spaceId, 1)[0];
+  const previous = readingBefore(payload.spaceId, payload.recordedAt);
   const occupiedSeats = payload.occupiedSeats ?? previous?.occupiedSeats;
   const totalSeats = payload.totalSeats ?? previous?.totalSeats;
   if (occupiedSeats === undefined || totalSeats === undefined) {
