@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { isDemoSpace } from "@/lib/demo";
 import type { HourlyPoint, ScoredSpace } from "@/lib/types";
+import DemoDataNotice from "./DemoDataNotice";
 import { ArrowIcon } from "./Icons";
 import Logo from "./Logo";
 import SpaceCard, { timeAgo } from "./SpaceCard";
@@ -62,6 +64,11 @@ export default function SpaceDetail({ initial }: { initial: DetailPayload }) {
           <p className="mt-1 text-sm opacity-70">
             {space.building} · last sweep {timeAgo(space.latest.recordedAt)}
           </p>
+          {isDemoSpace(space.id) && (
+            <div className="mt-2">
+              <DemoDataNotice compact />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <LiteToggle />

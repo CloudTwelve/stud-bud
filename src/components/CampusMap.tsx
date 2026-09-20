@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { layoutCampus, PLAN, scoreFill } from "@/lib/campus";
+import { isDemoSpace } from "@/lib/demo";
+import { LIVE_SPACE } from "@/lib/live";
 import { useStill } from "@/lib/motion";
 import type { ScoredSpace } from "@/lib/types";
 import { ArrowIcon, METRIC_ICON } from "./Icons";
@@ -208,12 +210,13 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
                   ? space.latest.occupiedSeats / space.latest.totalSeats
                   : 0;
                 const selected = space.id === activeId;
+                const isLive = space.id === LIVE_SPACE.id;
                 return (
                   <g
                     key={space.id}
                     role="link"
                     tabIndex={0}
-                    aria-label={`${space.name}, score ${
+                    aria-label={`${space.name}${isLive ? ", live hardware" : ""}, score ${
                       space.stale ? "unknown" : Math.round(space.verdict.score)
                     }`}
                     className={`cursor-pointer outline-none ${still ? "" : "transition-opacity"}`}
@@ -226,7 +229,9 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
                       router.push(`/space/${space.id}`);
                     }}
                   >
-                    <title>{`${space.name} — ${space.verdict.headline}`}</title>
+                    <title>
+                      {`${space.name}${isLive ? " (live hardware)" : ""} — ${space.verdict.headline}`}
+                    </title>
                     <rect
                       x={x}
                       y={y}
@@ -250,9 +255,27 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
                       width={w}
                       height={h}
                       fill="none"
-                      stroke={selected ? "var(--foreground)" : "var(--line-strong)"}
-                      strokeWidth={selected ? 0.6 : 0.25}
+                      stroke={
+                        selected
+                          ? "var(--foreground)"
+                          : isLive
+                            ? "var(--brand)"
+                            : "var(--line-strong)"
+                      }
+                      strokeWidth={selected ? 0.6 : isLive ? 0.5 : 0.25}
                     />
+                    {/* The one room that is real gets a marker, not just a
+                        tint: on a map of simulated rooms it has to be told
+                        apart at a glance. */}
+                    {isLive && (
+                      <circle
+                        cx={x + w - 1.6}
+                        cy={y + 1.6}
+                        r="0.9"
+                        fill="var(--brand)"
+                        className={still ? undefined : "map-live-pip"}
+                      />
+                    )}
                     <text
                       x={x + w / 2}
                       y={y + h / 2 + 1.1}
@@ -305,7 +328,14 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
           <>
             <div>
               <p className="text-lg font-semibold">{active.name}</p>
-              <p className="text-sm opacity-60">{active.building}</p>
+              <p className="text-sm opacity-60">
+                {active.building}
+                {active.id === LIVE_SPACE.id
+                  ? " \u00b7 live hardware"
+                  : isDemoSpace(active.id)
+                    ? " \u00b7 example data"
+                    : ""}
+              </p>
             </div>
             <p className="text-4xl font-semibold tabular-nums">
               {active.stale ? "—" : Math.round(active.verdict.score)}
@@ -346,7 +376,8 @@ export default function CampusMap({ spaces }: { spaces: ScoredSpace[] }) {
         <p className="border-t border-line pt-3 text-xs opacity-55">
           Blocks are rooms, tinted teal (go) to orange (think twice); the shaded
           part is how full the room is. Hover or tab to read one, click to open
-          it, drag to pan.
+          it, drag to pan. The block ringed in teal is {LIVE_SPACE.name} — the
+          only room here reading from real hardware.
         </p>
       </aside>
     </section>

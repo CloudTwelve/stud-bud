@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { isDemoSpace } from "@/lib/demo";
 import { LIVE_SPACE } from "@/lib/live";
 import { useReorderAnimation } from "@/lib/motion";
 import {
@@ -20,6 +21,7 @@ import {
 import { DEFAULT_WEIGHTS, evaluate } from "@/lib/score";
 import type { ScoredSpace, Space } from "@/lib/types";
 import CampusMap from "./CampusMap";
+import DemoDataNotice from "./DemoDataNotice";
 import {
   ArrowIcon,
   BookIcon,
@@ -132,6 +134,14 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
     }
     return copy;
   }, [campus, sort]);
+
+  // The map is a plan of the building, so the real room belongs on it even
+  // though the ranked card list stays idealized; appended last so the readout
+  // still opens on whatever the chosen sort put first.
+  const mapped = useMemo(
+    () => (liveSpace ? [...sorted, liveSpace] : sorted),
+    [sorted, liveSpace],
+  );
 
   const best = sorted.find((space) => !space.stale) ?? null;
   const cardRef = useReorderAnimation(sorted.map((space) => space.id));
@@ -277,10 +287,14 @@ export default function Dashboard({ initialSpaces }: DashboardProps) {
         </div>
       </header>
 
+      {view !== "live" && sorted.some((space) => isDemoSpace(space.id)) && (
+        <DemoDataNotice />
+      )}
+
       {view === "live" ? (
         <LiveRoom space={liveSpace} />
       ) : view === "map" ? (
-        <CampusMap spaces={sorted} />
+        <CampusMap spaces={mapped} />
       ) : (
         <section className="grid gap-5 md:grid-cols-2 md:gap-6">
           {sorted.map((space) => (

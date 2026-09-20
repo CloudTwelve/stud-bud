@@ -1,8 +1,10 @@
 import { backend } from "./backend";
+import type { DemoSpaceId } from "./demo";
 import type { Reading } from "./types";
 
 interface SpaceSeed {
-  id: string;
+  /** Typed so a new seed that the UI would not call example data fails here. */
+  id: DemoSpaceId;
   name: string;
   building: string;
   temperature: number;
