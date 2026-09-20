@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useAnimatedNumber } from "@/lib/motion";
+import { useAnimatedNumber, useStill } from "@/lib/motion";
 import type { ScoredSpace } from "@/lib/types";
 import { METRIC_ICON } from "./Icons";
 import Sparkline from "./Sparkline";
@@ -44,20 +44,31 @@ export function timeAgo(iso: string): string {
   return `${hours} h ago`;
 }
 
-/** True for about a second after this room reports a sweep it hadn't before. */
-function useJustLanded(recordedAt: string): boolean {
-  const [landed, setLanded] = useState(false);
+/**
+ * Alternates between two animations for about a second after this room reports
+ * a sweep it hadn't before. Alternating matters because a second sweep landing
+ * mid-flash would otherwise leave the animation untouched and CSS would not
+ * restart it; dropping the class afterwards matters because an animation left
+ * suppressed by reduced motion would play on old data the moment motion
+ * came back.
+ */
+function useLandedClass(recordedAt: string): string {
+  const [flash, setFlash] = useState(0);
+  const sweeps = useRef(0);
   const previous = useRef(recordedAt);
+  const still = useStill();
 
   useEffect(() => {
     if (previous.current === recordedAt) return;
     previous.current = recordedAt;
-    setLanded(true);
-    const timer = setTimeout(() => setLanded(false), 1200);
+    sweeps.current += 1;
+    setFlash(sweeps.current);
+    const timer = setTimeout(() => setFlash(0), 1200);
     return () => clearTimeout(timer);
   }, [recordedAt]);
 
-  return landed;
+  if (still || flash === 0) return "";
+  return flash % 2 === 0 ? "landed-a" : "landed-b";
 }
 
 export default function SpaceCard({
@@ -70,7 +81,7 @@ export default function SpaceCard({
   const tone = scoreTone(space.verdict.score);
   const free = Math.max(0, space.latest.totalSeats - space.latest.occupiedSeats);
   const soundHistory = space.history.map((reading) => reading.sound);
-  const landed = useJustLanded(space.latest.recordedAt);
+  const landed = useLandedClass(space.latest.recordedAt);
   const score = Math.round(useAnimatedNumber(space.verdict.score));
 
   return (
@@ -78,7 +89,7 @@ export default function SpaceCard({
       ref={ref}
       className={`panel relative isolate flex flex-col gap-5 overflow-hidden p-5 transition hover:-translate-y-1 hover:border-line-strong sm:p-6 ${
         space.stale ? "opacity-60 saturate-50" : ""
-      } ${landed ? "landed" : ""}`}
+      } ${landed}`}
     >
       {!space.stale && (
         <div className="card-trace" aria-hidden="true">
