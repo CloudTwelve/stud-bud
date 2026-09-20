@@ -72,8 +72,9 @@ export default function LiveRoom({ space }: LiveRoomProps) {
           <p className="mt-2 opacity-75">
             Point the UNO Q (and the dog, for seats) at this server and post the
             payload below. The room appears the moment it arrives — no restart,
-            no config on this side. The first post has to carry seat counts;
-            after that either device can send only what it measures.
+            no config on this side. Only the first post has to be complete;
+            after that either device can send only what it measures, and the
+            rest carries forward.
           </p>
           <pre className="clip-tag mt-3 overflow-x-auto bg-[var(--code-bg)] p-4 font-mono text-xs text-[color:var(--brand-soft)]">
             {PAYLOAD}

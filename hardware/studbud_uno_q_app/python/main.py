@@ -81,23 +81,24 @@ def load_config() -> dict:
 
 CONFIG = load_config()
 
-samples: list[tuple[float, float, float, float]] = []
+# Kept per sensor rather than per sweep: the server carries missing fields
+# forward, so one flaky sensor should cost its own field and nothing else.
+samples: dict[str, list[float]] = {name: [] for name, _, _ in RANGES}
 last_post = 0.0
 
 
 def on_sample(temperature: float, humidity: float, sound: float, light: float) -> None:
     values = (temperature, humidity, sound, light)
-    if any(math.isnan(value) for value in values):
-        print("skipping sample with a sensor that has not reported yet")
-        return
     for value, (name, low, high) in zip(values, RANGES):
+        if math.isnan(value):
+            continue  # sensor has not reported yet
         if not low <= value <= high:
             # A wrong sensor type decodes into confident nonsense rather than
             # failing, and one bad sweep skews a room's score for a day.
-            print(f"skipping sample: {name}={value} is outside {low}..{high}")
-            return
-    samples.append(values)
-    del samples[:-MAX_SAMPLES]
+            print(f"dropping {name}={value}: outside {low}..{high}")
+            continue
+        samples[name].append(value)
+        del samples[name][:-MAX_SAMPLES]
 
 
 def post(payload: dict) -> bool:
@@ -117,7 +118,7 @@ def post(payload: dict) -> bool:
         return False
     if response.status_code >= 400:
         print(f"post {response.status_code}: {response.text[:200]}")
-        if response.status_code == 400 and "are required for new space" in response.text:
+        if response.status_code == 400 and "must include every field" in response.text:
             print(
                 f"  -> {CONFIG['spaceId']} does not exist on the server yet, and this"
                 " node does not count seats. Have the robot dog post once, or add"
@@ -137,23 +138,23 @@ def loop() -> None:
         return
     last_post = now
 
-    if not samples:
+    batch = {name: values[:] for name, values in samples.items() if values}
+    if not batch:
         print("no samples yet - is the sketch running?")
         return
-
-    batch = samples[:]
-    count = len(batch)
 
     payload = {
         "spaceId": CONFIG["spaceId"],
         "name": CONFIG["name"],
         "building": CONFIG["building"],
-        "temperature": round(sum(s[0] for s in batch) / count, 1),
-        "humidity": round(sum(s[1] for s in batch) / count, 1),
-        # Noise is judged by how loud the room gets, not by its quiet moments.
-        "sound": round(max(s[2] for s in batch), 1),
-        "light": round(sum(s[3] for s in batch) / count),
     }
+    for name, values in batch.items():
+        # Noise is judged by how loud the room gets, not by its quiet moments.
+        average = max(values) if name == "sound" else sum(values) / len(values)
+        payload[name] = round(average) if name == "light" else round(average, 1)
+    missing = [name for name, _, _ in RANGES if name not in payload]
+    if missing:
+        print(f"posting without {', '.join(missing)}: no valid reading this minute")
     if CONFIG["totalSeats"] is not None and CONFIG["occupiedSeats"] is not None:
         payload["totalSeats"] = CONFIG["totalSeats"]
         payload["occupiedSeats"] = CONFIG["occupiedSeats"]
@@ -161,7 +162,8 @@ def loop() -> None:
     # Only drop the samples the server actually took: a timeout should cost a
     # minute of latency, not a minute of data.
     if post(payload):
-        del samples[:count]
+        for name, values in batch.items():
+            del samples[name][: len(values)]
 
 
 Bridge.provide("sample", on_sample)

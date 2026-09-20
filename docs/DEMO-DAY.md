@@ -41,20 +41,20 @@ wouldn't?
 **Read:** `src/lib/types.ts`, then `src/lib/validate.ts`
 
 `types.ts` is the contract for the entire project — every layer, hardware
-included, agrees on this shape. Five numbers plus an id:
+included, agrees on this shape. An id plus six optional numbers:
 
 ```ts
-{ spaceId, temperature, humidity, sound, light, occupiedSeats?, totalSeats? }
+{ spaceId, temperature?, humidity?, sound?, light?, occupiedSeats?, totalSeats? }
 ```
 
-`validate.ts` is the bouncer. Note that the seat fields are optional **as a
-pair** — you send both or neither. That one decision is what lets two different
-machines (an Arduino that knows nothing about seats, a robot dog that knows
-nothing about temperature) report on the *same* room without stepping on each
-other.
+`validate.ts` is the bouncer. Note that every measurement is optional and only
+the id is not: whatever a sweep omits, `store.ts` carries forward from the
+room's last reading. That one decision is what lets two different machines (an
+Arduino that knows nothing about seats, a robot dog that knows nothing about
+temperature) report on the *same* room without stepping on each other.
 
-**Boss question:** why are `occupiedSeats` and `totalSeats` optional, and why
-must they travel together?
+**Boss question:** if every field is optional, what makes a room's *first*
+reading different — and why does the server have to reject that one?
 
 ---
 
@@ -91,7 +91,8 @@ Two details worth stealing for the presentation:
   marked `stale` and the UI stops scoring it. Old data presented as current is
   worse than no data.
 - **Carry-forward**: post temperature without seats and the last known seat
-  count is reused. This is the other half of the Level 2 decision.
+  count is reused, and vice versa. This is the other half of the Level 2
+  decision, and `IncompleteFirstReadingError` is the one case it can't cover.
 
 `seed.ts` is the honest one: **every room you have ever seen on the dashboard
 came from here.** Five invented rooms, 24 hours of history at 20-minute
@@ -239,20 +240,13 @@ occupancy half:
 { "spaceId": "hayden-reading-room", "occupiedSeats": 31, "totalSeats": 60 }
 ```
 
-Wait — validation requires the four environmental fields. So there are two
-honest options, and which one you pick is a design decision worth stating in the
-presentation:
+That is the whole payload: the environmental fields are optional and carried
+forward, so the dog never has to repeat numbers it didn't measure. The only
+sweep that must be complete is the one that creates a room, because there is
+nothing yet to carry forward.
 
-- **A (no server change):** the dog's script GETs `/api/readings`, takes the
-  room's latest environmental values, and reposts them with its own seat counts.
-  Simple, no code from us, but it copies numbers it didn't measure.
-- **B (small server change):** make the environmental fields optional the same
-  way the seat fields already are, and carry *them* forward instead. This is the
-  symmetric version of the Level 2 decision and is maybe twenty lines in
-  `validate.ts` + `store.ts`. Ask and it gets done.
-
-Either way, the counting is the hard part, not the posting. Two paths depending
-on how much time is left:
+The counting is the hard part, not the posting. Two paths depending on how much
+time is left:
 
 - **Autonomous:** frames off the Go2 (SDK over its network, or an onboard
   camera), a person detector, count heads per patrol point, POST.

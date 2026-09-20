@@ -154,9 +154,9 @@ dashboard and send four numbers by hand.
 
 This node reports environment only and leaves `occupiedSeats`/`totalSeats` out
 of the payload, so the dashboard keeps whatever the robot dog last counted for
-that room. Set both `totalSeats` and `occupiedSeats` in `studbud.json` if this
-board is also the thing counting people — the server needs either both or
-neither.
+that room. Set them in `studbud.json` if this board is also the thing counting
+people. The exception is a room the server has never seen: it has nothing to
+carry forward, so the sweep that creates it must include seats too.
 
 ## Calibrating the microphone
 
