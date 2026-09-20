@@ -17,7 +17,15 @@ from pathlib import Path
 import requests
 from arduino.app_utils import App, Bridge
 
-CONFIG_PATH = Path(os.environ.get("STUDBUD_CONFIG", "/home/arduino/studbud.json"))
+# The app runs in a container, so /home/arduino here is not the /home/arduino a
+# terminal writes to. The app directory is shared either way, so a config placed
+# beside the app is the one that always works.
+CONFIG_PATHS = [
+    Path(os.environ["STUDBUD_CONFIG"]) if os.environ.get("STUDBUD_CONFIG") else None,
+    Path(__file__).resolve().parent / "studbud.json",
+    Path(__file__).resolve().parent.parent / "studbud.json",
+    Path("/home/arduino/studbud.json"),
+]
 POST_INTERVAL = 60.0  # seconds
 # ~10 minutes of samples: enough to ride out a short outage without the buffer
 # growing forever while the server is down.
@@ -26,7 +34,7 @@ MAX_SAMPLES = 300
 
 def load_config() -> dict:
     config = {
-        "url": "http://192.168.1.42:3000/api/readings",
+        "url": "",
         "token": "",
         "spaceId": "stud-5-lounge",
         "name": "Stud 5 Lounge",
@@ -38,8 +46,15 @@ def load_config() -> dict:
         "totalSeats": None,
         "occupiedSeats": None,
     }
-    if CONFIG_PATH.is_file():
-        config.update(json.loads(CONFIG_PATH.read_text()))
+    source = "no file, looked in " + ", ".join(
+        str(p) for p in CONFIG_PATHS if p is not None
+    )
+    for path in CONFIG_PATHS:
+        if path is not None and path.is_file():
+            config.update(json.loads(path.read_text()))
+            source = str(path)
+            break
+    overridden = []
     for key, env in (
         ("url", "STUDBUD_URL"),
         ("token", "STUDBUD_INGEST_TOKEN"),
@@ -49,6 +64,11 @@ def load_config() -> dict:
     ):
         if os.environ.get(env):
             config[key] = os.environ[env]
+            overridden.append(env)
+    # Printed after the overrides so it names where each post will really go.
+    if overridden:
+        source += " + " + ", ".join(overridden)
+    print(f"config: {source} -> {config['url'] or 'no url'}")
     return config
 
 
@@ -68,6 +88,12 @@ def on_sample(temperature: float, humidity: float, sound: float, light: float) -
 
 
 def post(payload: dict) -> bool:
+    if not CONFIG["url"]:
+        print(
+            "no url configured: put studbud.json next to the app"
+            f" ({CONFIG_PATHS[1]}) with a \"url\" field"
+        )
+        return False
     headers = {}
     if CONFIG["token"]:
         headers["Authorization"] = f"Bearer {CONFIG['token']}"

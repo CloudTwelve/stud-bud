@@ -99,8 +99,9 @@ built for the UNO Q through App Lab. Use App Lab's *Import App* on the
 
 ## Configuration
 
-Create `/home/arduino/studbud.json` on the board — this file is **not** part of
-the app, so the token never ends up in git:
+Create `studbud.json` **next to the app**, at
+`~/ArduinoApps/studbud_uno_q_app/python/studbud.json` on the board. It is
+gitignored, so the token never ends up in git:
 
 ```json
 {
@@ -112,8 +113,16 @@ the app, so the token never ends up in git:
 }
 ```
 
-The address is the dashboard host's LAN IP, not `localhost` — `localhost` from
-the board means the board itself. `STUDBUD_URL`, `STUDBUD_INGEST_TOKEN`,
+The Python half runs in a container, so `/home/arduino` as seen by the app is
+not the `/home/arduino` an App Lab terminal writes to — a config written there
+can be invisible to the running app. The app directory is shared, so keeping the
+file beside `main.py` always works; `/home/arduino/studbud.json` is still read
+as a fallback. On startup the console prints which file it loaded and the URL it
+will post to, so check that line before debugging the network. The file is read
+once at startup: after editing it, press Stop then Run.
+
+The address is the dashboard host's LAN IP (or the public site's `https://` URL),
+not `localhost` — `localhost` from the board means the board itself. `STUDBUD_URL`, `STUDBUD_INGEST_TOKEN`,
 `STUDBUD_SPACE_ID`, `STUDBUD_SPACE_NAME` and `STUDBUD_SPACE_BUILDING` override
 the file if you prefer environment variables.
 
@@ -132,6 +141,8 @@ One app per room: give each board its own `spaceId`.
 | `t=nan h=nan` | DHT22 pull-up resistor missing, or data on the wrong pin |
 | dB barely moves | mic gain pot turned down, or `OUT` not on A0 |
 | Monitor fine, no `post:` | wrong URL/IP, server not running, or laptop firewall |
+| `post failed: ...timed out` with a URL you never set | the config wasn't found — check the `config:` line printed at startup |
+| `no url configured` | no `studbud.json` on any searched path |
 | `post: 401` | the board's token and the server's `STUDBUD_INGEST_TOKEN` differ |
 
 You can always check the server half without any hardware: open `/test` on the
