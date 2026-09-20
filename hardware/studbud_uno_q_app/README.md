@@ -74,6 +74,22 @@ both when you press Run. You never drag a `.hex` file anywhere.
 Re-flashing after an edit is just pressing Run again; it replaces what's on the
 MCU. Nothing you do here can brick the board.
 
+### If a library is missing
+
+`fatal error: Arduino_Modulino.h: No such file or directory` means step 4 was
+skipped or declined — the header ships with a library, not with the core. Fix it
+in *Library Manager* (the books icon): search `Modulino`, install
+**Arduino_Modulino** by Arduino, version 0.9.1. The same applies to
+`DHT.h` (`DHT sensor library` by Adafruit, which also pulls in
+`Adafruit Unified Sensor`).
+
+If you're compiling from a **downloaded zip in Arduino IDE 2** rather than
+importing the folder into App Lab, expect this error every time — IDE 2 never
+reads `sketch/sketch.yaml`, so nothing gets installed for you. It also can't run
+the Python half, and `Arduino_RouterBridge` is only present when the sketch is
+built for the UNO Q through App Lab. Use App Lab's *Import App* on the
+`studbud_uno_q_app` folder instead.
+
 ## Configuration
 
 Create `/home/arduino/studbud.json` on the board — this file is **not** part of
@@ -101,6 +117,7 @@ One app per room: give each board its own `spaceId`.
 | Symptom | Where to look |
 | --- | --- |
 | Board never appears in App Lab | charge-only USB-C cable, or Linux still booting |
+| `Arduino_Modulino.h: No such file or directory` | the library isn't installed — see *If a library is missing* above |
 | `Modulino Light not found` | Qwiic cable not seated, or plugged into a Modulino's *output* socket |
 | `lux=nan` forever | the node answered `begin()` but `update()` keeps failing — reseat the cable |
 | `t=nan h=nan` | DHT22 pull-up resistor missing, or data on the wrong pin |
