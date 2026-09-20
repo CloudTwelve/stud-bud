@@ -12,6 +12,16 @@ function num(body: Unknown, key: string, errors: string[]): number {
   return value;
 }
 
+function optionalNum(
+  body: Unknown,
+  key: string,
+  errors: string[],
+): number | undefined {
+  return body[key] === undefined || body[key] === null
+    ? undefined
+    : num(body, key, errors);
+}
+
 function str(body: Unknown, key: string): string | undefined {
   const raw = body[key];
   return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : undefined;
@@ -37,16 +47,26 @@ export function parseIngest(
     humidity: num(input, "humidity", errors),
     sound: num(input, "sound", errors),
     light: num(input, "light", errors),
-    occupiedSeats: num(input, "occupiedSeats", errors),
-    totalSeats: num(input, "totalSeats", errors),
+    occupiedSeats: optionalNum(input, "occupiedSeats", errors),
+    totalSeats: optionalNum(input, "totalSeats", errors),
     recordedAt: str(input, "recordedAt"),
   };
 
-  if (payload.totalSeats < 0 || payload.occupiedSeats < 0) {
-    errors.push("seat counts must be non-negative");
+  const { occupiedSeats, totalSeats } = payload;
+  if ((occupiedSeats === undefined) !== (totalSeats === undefined)) {
+    errors.push('send "occupiedSeats" and "totalSeats" together, or neither');
   }
-  if (payload.occupiedSeats > payload.totalSeats) {
-    errors.push('"occupiedSeats" cannot exceed "totalSeats"');
+  if (
+    occupiedSeats !== undefined &&
+    totalSeats !== undefined &&
+    errors.length === 0
+  ) {
+    if (totalSeats < 0 || occupiedSeats < 0) {
+      errors.push("seat counts must be non-negative");
+    }
+    if (occupiedSeats > totalSeats) {
+      errors.push('"occupiedSeats" cannot exceed "totalSeats"');
+    }
   }
   if (payload.recordedAt && Number.isNaN(Date.parse(payload.recordedAt))) {
     errors.push('"recordedAt" must be an ISO 8601 timestamp');

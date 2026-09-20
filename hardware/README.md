@@ -49,8 +49,10 @@ the digital pin is just a threshold "loud/not loud" gate.
    the server address. On a laptop, that address is the laptop's LAN IP
    (`ipconfig` / `ifconfig`), not `localhost` — `localhost` on the Arduino
    means the Arduino.
-4. Edit `SPACE_ID`, `SPACE_NAME`, `SPACE_BUILDING` and `TOTAL_SEATS` at the top
-   of the sketch: one node per room, each with its own `SPACE_ID`.
+4. Edit `SPACE_ID`, `SPACE_NAME` and `SPACE_BUILDING` at the top of the sketch:
+   one node per room, each with its own `SPACE_ID`. Leave `HAS_SEAT_SENSOR` at
+   `0` unless this node counts seats — the sweep then omits the seat fields and
+   the server keeps whatever the dog last measured.
 5. Upload, then open Serial Monitor at 115200 baud. You want to see
    `post: 201`. `401` means the token doesn't match the server's
    `STUDBUD_INGEST_TOKEN`; a timeout usually means a firewall on the laptop or
@@ -101,7 +103,10 @@ Options, cheapest first:
   max count per sweep. This is where the dog earns its place: it gives you
   ground truth that resets the doorway counter's drift.
 
-Whatever you pick, the dog just POSTs the same JSON — see below.
+Whatever you pick, the dog just POSTs the same JSON — see below. A sweep that
+omits `occupiedSeats`/`totalSeats` leaves the stored count alone, so
+environment nodes and whatever counts people can report at completely
+different rates without fighting each other.
 
 ## The robot dog side
 

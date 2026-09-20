@@ -78,9 +78,13 @@ curl -X POST http://localhost:3000/api/readings \
 | `humidity` | % RH | yes |
 | `sound` | dB | yes |
 | `light` | lux | yes |
-| `occupiedSeats` / `totalSeats` | seats | yes |
+| `occupiedSeats` / `totalSeats` | seats | yes for a room's first sweep |
 | `name`, `building` | labels for a new room | no |
 | `recordedAt` | ISO 8601, defaults to now | no |
+
+Send the two seat fields together or leave both out. A sweep without them
+keeps the room's last known occupancy, so an environment-only node (no seat
+sensor) does not wipe the count the robot dog measured on its last patrol.
 
 Readings are stored in SQLite (`.data/studbud.db` by default, created and
 seeded with demo rooms on first boot), so history survives restarts. The
