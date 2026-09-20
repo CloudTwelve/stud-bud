@@ -46,3 +46,6 @@ hardware/**/arduino_secrets.h
 
 # board config (may contain the ingest token)
 hardware/**/studbud.json
+
+# python bytecode
+__pycache__/
