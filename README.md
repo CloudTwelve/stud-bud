@@ -17,6 +17,7 @@ Other scripts: `npm run build`, `npm start`, `npm run lint`.
 | --- | --- |
 | `STUDBUD_INGEST_TOKEN` | When set, `POST /api/readings` requires `Authorization: Bearer <token>`. Unset means open ingest (local development only). |
 | `DATABASE_URL` | Postgres connection string. When set, it is used instead of SQLite — this is what makes readings durable on a serverless host. `POSTGRES_URL` and `STUDBUD_POSTGRES_URL` are also accepted. |
+| `STUDBUD_PG_INSECURE_SSL` | Set to `1` to skip Postgres certificate verification (only needed for a database behind a private CA). |
 | `STUDBUD_DB` | SQLite file path, used when no Postgres URL is set. Defaults to `.data/studbud.db`. |
 | `STUDBUD_MEMORY_STORE` | Set to `1` to skip SQLite and keep readings in memory. |
 | `STUDBUD_BASE_URL` | Public URL used for Open Graph / share metadata. |

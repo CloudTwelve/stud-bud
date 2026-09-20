@@ -227,17 +227,34 @@ function sqliteBackend(): Backend | null {
   }
 }
 
+/**
+ * Hosted providers present certificates that verify against the normal root
+ * store, so verification stays on. `sslmode=no-verify` (or
+ * `STUDBUD_PG_INSECURE_SSL=1`) is the escape hatch for a private CA, and a
+ * local Postgres usually speaks no TLS at all.
+ */
+function sslFor(url: string): false | { rejectUnauthorized: boolean } {
+  if (/sslmode=disable|@localhost|@127\.0\.0\.1/.test(url)) return false;
+  if (/sslmode=no-verify/.test(url) || process.env.STUDBUD_PG_INSECURE_SSL === "1") {
+    return { rejectUnauthorized: false };
+  }
+  return { rejectUnauthorized: true };
+}
+
+/** Watch for another instance's seed to land, giving up rather than hanging. */
+async function waitForSeed(isEmpty: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    if (!(await isEmpty())) return;
+  }
+}
+
 async function postgresBackend(url: string): Promise<Backend | null> {
   try {
     const { Pool } = await import("pg");
     const pool = new Pool({
       connectionString: url,
-      // Hosted providers terminate TLS with certificates this client cannot
-      // chain to a local root store; the connection is still encrypted. A
-      // local Postgres usually speaks no TLS at all.
-      ssl: /sslmode=disable|@localhost|@127\.0\.0\.1/.test(url)
-        ? false
-        : { rejectUnauthorized: false },
+      ssl: sslFor(url),
       max: 3,
     });
     await pool.query(POSTGRES_SCHEMA);
@@ -368,10 +385,25 @@ async function postgresBackend(url: string): Promise<Backend | null> {
       isEmpty,
       seedOnce: async (fill) => {
         if (!(await isEmpty())) return;
+
+        // Try for the lock rather than waiting on it: a waiting client is a
+        // checked-out client, and enough of those starve `fill` of the
+        // connections it needs. Losers hand their client back and watch for
+        // the winner's rows instead.
         const client = await pool.connect();
+        const locked = (
+          await client.query<{ locked: boolean }>(
+            "SELECT pg_try_advisory_lock($1) AS locked",
+            [SEED_LOCK_KEY],
+          )
+        ).rows[0].locked;
+        if (!locked) {
+          client.release();
+          await waitForSeed(isEmpty);
+          return;
+        }
+
         try {
-          // Whoever loses the race waits here, then sees a non-empty database.
-          await client.query("SELECT pg_advisory_lock($1)", [SEED_LOCK_KEY]);
           if (await isEmpty()) await fill();
         } finally {
           await client.query("SELECT pg_advisory_unlock($1)", [SEED_LOCK_KEY]);
@@ -463,7 +495,11 @@ async function open(): Promise<Backend> {
 
   if (POSTGRES_URL) {
     const postgres = await postgresBackend(POSTGRES_URL);
-    if (postgres) return postgres;
+    // Never quietly downgrade to a store that forgets: a configured database
+    // means readings are expected to survive, so a database that is briefly
+    // unreachable has to surface as a failed request and be retried.
+    if (!postgres) throw new Error("configured Postgres database is unavailable");
+    return postgres;
   }
 
   const sqlite = sqliteBackend();
