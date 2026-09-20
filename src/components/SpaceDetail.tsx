@@ -43,7 +43,7 @@ export default function SpaceDetail({ initial }: { initial: DetailPayload }) {
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-8 sm:px-8 sm:py-14">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/" className="text-sm opacity-60 hover:underline">
+          <Link href="/rooms" className="text-sm opacity-60 hover:underline">
             ← All rooms
           </Link>
           <h1 className="mt-2 bg-gradient-to-r from-fuchsia-500 via-violet-500 to-sky-400 bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-5xl">
