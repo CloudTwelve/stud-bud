@@ -94,8 +94,11 @@ def loop() -> None:
         print("no samples yet - is the sketch running?")
         return
 
+    # Detach the batch before the blocking POST: the Bridge handler keeps
+    # appending (and evicting) while the request is in flight.
     batch = samples[:]
     count = len(batch)
+    del samples[:count]
 
     payload = {
         "spaceId": CONFIG["spaceId"],
@@ -111,10 +114,10 @@ def loop() -> None:
         payload["totalSeats"] = CONFIG["totalSeats"]
         payload["occupiedSeats"] = CONFIG["occupiedSeats"]
 
-    # Only drop the samples the server actually took: a timeout should cost a
-    # minute of latency, not a minute of data.
-    if post(payload):
-        del samples[:count]
+    # A timeout should cost a minute of latency, not a minute of data.
+    if not post(payload):
+        samples[:0] = batch
+        del samples[:-MAX_SAMPLES]
 
 
 Bridge.provide("sample", on_sample)
